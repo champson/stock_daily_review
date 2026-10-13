@@ -1,0 +1,73 @@
+{
+  "timezone": "Asia/Shanghai",
+  "mcp_url": "https://mcp.tdx.com.cn:3001/mcp",
+  "token_env": "TDX_MCP_TOKEN",
+  "calendar": null,
+  "datasets": {
+    "indices": null,
+    "stocks": null,
+    "etfs": null,
+    "futures": null,
+    "options": null
+  },
+  "source_policy": "a_stock_data_first_tongdaxin_official_mcp_fallback",
+  "official_portal": "https://www.tdx.com.cn/",
+  "auth": null,
+  "source_order": [
+    "a_stock_data",
+    "tongdaxin_mcp"
+  ],
+  "primary": {
+    "repository": "https://github.com/simonlin1212/a-stock-data",
+    "revision": "29b07d2e37005b9fd568bca1262f6e572b5f9407",
+    "tdx_official_calendar_fallback": true,
+    "indices": [
+      {
+        "symbol": "sh000001",
+        "name": "上证指数",
+        "package_symbol": "sh999999"
+      },
+      {
+        "symbol": "sz399001",
+        "name": "深证成指"
+      },
+      {
+        "symbol": "sz399006",
+        "name": "创业板指"
+      },
+      {
+        "symbol": "sh000300",
+        "name": "沪深300"
+      },
+      {
+        "symbol": "sh000016",
+        "name": "上证50"
+      },
+      {
+        "symbol": "sh000905",
+        "name": "中证500"
+      },
+      {
+        "symbol": "sh000852",
+        "name": "中证1000"
+      },
+      {
+        "symbol": "sh000688",
+        "name": "科创50"
+      }
+    ],
+    "etfs": [
+      "sh510050",
+      "sh510300",
+      "sh510500",
+      "sh512100",
+      "sz159915",
+      "sh588000",
+      "sz159919",
+      "sz159845",
+      "sz159949",
+      "sh512880",
+      "sh515000"
+    ]
+  }
+}
