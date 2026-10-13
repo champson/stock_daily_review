@@ -1,6 +1,6 @@
 {
   "timezone": "Asia/Shanghai",
-  "mcp_url": "https://stock.quicktiny.cn/api/mcp",
+  "mcp_url": "https://mcp.tdx.com.cn:3001/mcp",
   "token_env": "TDX_MCP_TOKEN",
   "calendar": null,
   "datasets": {
@@ -9,5 +9,8 @@
     "etfs": null,
     "futures": null,
     "options": null
-  }
+  },
+  "source_policy": "tongdaxin_official_only",
+  "official_portal": "https://www.tdx.com.cn/",
+  "auth": null
 }

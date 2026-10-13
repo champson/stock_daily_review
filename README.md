@@ -2,7 +2,9 @@
 
 目标：ChatGPT Cloud 运行通达信 MCP 数据采集与分析，北京时间 18:00 周一至周五触发，依据交易日历跳过休市日；ChatGPT Site 在线展示日报与历史存档。第一版面向综合市场复盘，具体指标可继续调整。
 
-**当前状态：本地框架已实现；MCP 实际接口映射、Sites 发布和定时任务尚未完成。没有使用真实行情生成报告。**
+**当前状态：本地框架已实现；通达信官方 MCP 服务 URL 已由用户确认；认证格式与实际接口映射待确认；Sites 发布和定时任务尚未完成。没有使用真实行情生成报告。**
+
+数据接入仅使用通达信官方服务。`mcp_url` 为用户确认的 `https://mcp.tdx.com.cn:3001/mcp`，不会访问第三方 MCP 地址。官方入口：https://www.tdx.com.cn/ → AI平台 → 通达信MCP。数据服务 Key 申请说明：https://help.tdx.com.cn/tdxclaw/docs/markdown/tdxclaw-api-key-data.html 。
 
 ## 数据流程
 
@@ -23,7 +25,7 @@ Cloud 定时任务 → 通达信 MCP → 日期与字段校验 → 确定性指�
 ## Cloud 配置
 
 - Python 3.12+，采集程序仅使用标准库。
-- 网络允许 `stock.quicktiny.cn`；当前 Sites 工具包下载域名为 `sdmntprsouthcentralus.oaiusercontent.com`。
+- 确认官方接入配置后，网络允许对应的通达信官方服务域名和端口；当前 Sites 工具包下载域名为 `sdmntprsouthcentralus.oaiusercontent.com`。
 - 官方配置入口：Settings → Codex Cloud → Environments → 当前环境的 ⋯ → Edit → Internet access → Additional allowed domains。保持 Package managers 并加入所需域名，保存与 Republish 后从更新环境启动新任务。参考：https://developers.openai.com/codex/environments/cloud-environments 。已有任务会保留自己的状态。
 - 站点发布后，还需允许站点工具返回的实际主机名，供无人值守写入/读回。
 - 如果 MCP 需要认证，通过 Cloud 密钥配置 `TDX_MCP_TOKEN`，不提交密钥到仓库。
@@ -34,6 +36,8 @@ Cloud 定时任务 → 通达信 MCP → 日期与字段校验 → 确定性指�
 ```bash
 python3 -m review.runner discover --output work/mcp-tools.json
 ```
+
+先依据官方接入说明填写 `mcp_url`（只接受 `tdx.com.cn` 及其子域名的 HTTPS 地址）及 `auth`。认证格式为 `{"header":"官方指定请求头","prefix":"官方指定前缀"}`；前缀可以为空，不默认假设官方使用 Bearer。客户端不自动跟随重定向，避免切换到未确认的服务地址。
 
 确认服务实际提供的 `tools/list`、输入 Schema、输出结构与覆盖范围后，填写 `config/review.json`。**不预设或猜测 MCP 工具名。**
 

@@ -1,6 +1,8 @@
 import unittest
+import os
+from unittest.mock import patch
 from review.analysis import analyze, validate_rows, historical_metrics
-from review.runner import build_report
+from review.runner import build_report, configured_client
 
 D = "2026-10-13"
 
@@ -68,6 +70,25 @@ class FinanceTests(unittest.TestCase):
         self.assertEqual(report["status"], "partial")
         self.assertEqual(report["sections"]["indices"]["rows"][0]["change_pct"], 1)
         self.assertEqual(len(report["errors"]), 4)
+
+
+class OfficialSourceTests(unittest.TestCase):
+    def test_only_official_https_domain_is_accepted(self):
+        with patch.dict(os.environ, {"TDX_MCP_TOKEN": ""}):
+            client = configured_client({"mcp_url": "https://mcp.tdx.com.cn:3001/mcp"})
+            self.assertEqual(client.url, "https://mcp.tdx.com.cn:3001/mcp")
+            for url in ("https://unapproved.example/mcp", "https://tdx.com.cn.example/mcp", "http://mcp.tdx.com.cn:3001/mcp"):
+                with self.subTest(url=url), self.assertRaisesRegex(ValueError, "仅允许通达信官方"):
+                    configured_client({"mcp_url": url})
+
+    def test_unconfigured_url_fails_before_network_request(self):
+        with self.assertRaisesRegex(ValueError, "尚未配置通达信官方"):
+            configured_client({"mcp_url": None})
+
+    def test_authentication_format_is_not_guessed(self):
+        with patch.dict(os.environ, {"TDX_MCP_TOKEN": "test-placeholder"}):
+            with self.assertRaisesRegex(ValueError, "官方接入说明配置认证"):
+                configured_client({"mcp_url": "https://mcp.tdx.com.cn:3001/mcp", "auth": None})
 
 
 if __name__ == "__main__":

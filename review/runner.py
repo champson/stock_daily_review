@@ -5,6 +5,7 @@ import sys
 from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
+from urllib.parse import urlsplit
 from .mcp_client import MCPClient, MCPError
 from .analysis import LABELS, validate_rows, analyze
 
@@ -89,6 +90,21 @@ def build_report(client, config, trading_date):
     return {"schema_version": 1, "date": trading_date, "generated_at": now, "timezone": "Asia/Shanghai", "source": "通达信 MCP", "status": "complete" if available == len(LABELS) else "partial" if any(s["sample_size"] for s in sections.values()) else "unavailable", "sections": sections, "provenance": provenance, "errors": errors}
 
 
+def configured_client(config):
+    url = config.get("mcp_url")
+    if not isinstance(url, str) or not url.strip():
+        raise ValueError("尚未配置通达信官方 MCP 服务 URL；请以官方接入页为准")
+    parsed = urlsplit(url)
+    host = parsed.hostname or ""
+    if parsed.scheme != "https" or not (host == "tdx.com.cn" or host.endswith(".tdx.com.cn")) or parsed.username or parsed.password:
+        raise ValueError("仅允许通达信官方 tdx.com.cn 域名下的 HTTPS MCP 服务")
+    token = os.environ.get(config.get("token_env", "TDX_MCP_TOKEN"))
+    auth = config.get("auth")
+    if token and (not isinstance(auth, dict) or not auth.get("header")):
+        raise ValueError("请根据官方接入说明配置认证请求头与前缀")
+    return MCPClient(url, token, auth_header=auth["header"] if token else "Authorization", auth_prefix=auth.get("prefix", "") if token else "Bearer ")
+
+
 def main():
     parser = argparse.ArgumentParser(description="通达信 MCP 股票复盘")
     parser.add_argument("action", choices=["discover", "run"])
@@ -97,8 +113,8 @@ def main():
     parser.add_argument("--output", required=True)
     args = parser.parse_args()
     config = json.loads(Path(args.config).read_text())
-    client = MCPClient(config["mcp_url"], os.environ.get(config.get("token_env", "TDX_MCP_TOKEN")))
     try:
+        client = configured_client(config)
         client.initialize()
         if args.action == "discover":
             result = {"server": config["mcp_url"], "tools": client.list_tools()}

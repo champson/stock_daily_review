@@ -8,11 +8,18 @@ class MCPError(RuntimeError):
     pass
 
 
+class NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+
 class MCPClient:
-    def __init__(self, url, token=None, timeout=45):
+    def __init__(self, url, token=None, timeout=45, auth_header="Authorization", auth_prefix="Bearer "):
         if not url.startswith("https://"):
             raise MCPError("远程 MCP 必须使用 HTTPS")
         self.url, self.token, self.timeout = url, token, timeout
+        self.auth_header, self.auth_prefix = auth_header, auth_prefix
+        self.opener = urllib.request.build_opener(NoRedirect())
         self.session, self.version, self.sequence = None, "2024-11-05", 0
 
     def _send(self, method, params, notification=False):
@@ -22,14 +29,14 @@ class MCPClient:
             payload["id"] = self.sequence
         headers = {"Content-Type": "application/json", "Accept": "application/json, text/event-stream"}
         if self.token:
-            headers["Authorization"] = "Bearer " + self.token
+            headers[self.auth_header] = self.auth_prefix + self.token
         if self.session:
             headers["Mcp-Session-Id"] = self.session
         if method != "initialize":
             headers["MCP-Protocol-Version"] = self.version
         request = urllib.request.Request(self.url, json.dumps(payload).encode(), headers, method="POST")
         try:
-            with urllib.request.urlopen(request, timeout=self.timeout) as response:
+            with self.opener.open(request, timeout=self.timeout) as response:
                 if response.headers.get("Mcp-Session-Id"):
                     self.session = response.headers["Mcp-Session-Id"]
                 if notification or response.status == 202:
