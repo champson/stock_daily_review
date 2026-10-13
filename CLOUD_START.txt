@@ -1,0 +1,13 @@
+继续开发股票复盘系统。用户已确定：通达信 MCP 为 https://stock.quicktiny.cn/api/mcp；综合市场复盘；覆盖 A股、ETF、股指期货与期权；北京时间（Asia/Shanghai）18:00，周一至周五触发，使用交易日历跳过休市。具体指标可以继续讨论，不扩大到下单交易。
+
+现有框架在 review/、config/、site/app/；README 记录口径与当前状态。9项核心测试通过，尚未获取真实行情、部署 Sites 或创建定时任务。config/review.json 中工具映射均为空，不能猜测工具名。
+
+继续步骤：
+1. 读取 Cloud Environment 和 Sites 的当前技能。确认当前网络策略允许 stock.quicktiny.cn 与 Sites bundle 下载域名；不要绕过代理、修改本地策略文件或反复尝试未改变的策略。
+2. 运行 python3 -m review.runner discover --output work/mcp-tools.json。依实际输入输出 schema 写适配器；验证交易日历、股票完整池、指数/历史、板块、ETF、期货/期权的真实支持范围。通达信不提供的模块明确显示缺失，并与用户确定补充数据源。
+3. 通过 Sites workflow 在独立目录初始化 Vinext starter，合并 site/app/。删除 starter app/page.tsx，保留平台构建/身份集成。配置 R2 BUCKET。核对 .openai/hosting.json 的 project_id；未注册才创建 Site，原样持久化ID，只创建一次，保存与部署 owner-private。
+4. Sites source helper 同步源码、构建打包并发布。生产URL来自native结果；未完成前不能声称在线。没有control-browser时遵循Sites技能的验证边界。
+5. get_site读取service access；凭据只在会话内与隐藏stdin传递，发送到该站点，不写入仓库、提示词或网页。允许实际Site主机名后，review.publish写报告并读回校验；未来任务必须可独立获取固定源代码、MCP配置和站点访问。
+6. 对每个未来任务所需外部源成功调用只读操作；验证无人值守writer和readback。再get_site检查关联automations，缺失/null不得创建。没有重复任务时用sites_create_schedule关联18:00任务。保存、启用状态以工具返回为准。日常更新R2数据，不重新部署站点。
+
+9项测试：python3 -m unittest discover -s tests -v
