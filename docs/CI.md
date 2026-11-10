@@ -4,7 +4,7 @@
 
 准备脚本负责检查源码状态、运行测试、构建站点和打包，并输出两个文件：
 
-- `site-release.tar`：Sites 可部署的构建产物。
+- `site-release.tar`：Sites 可部署的构建产物，保留根目录 `.openai/hosting.json` 和 `dist/server/index.js` 及完整 `dist/` 输出层级。
 - `release.json`：本次构建对应的源码版本和产物校验信息。
 
 所有步骤成功后，Actions 保存名为 `site-release-<GitHub commit SHA>` 的制品，保留 14 天。Pull Request 的检查使用 GitHub 提供的合并测试提交；生产发布应使用合并后 `main` 对应的成功任务及其制品。
