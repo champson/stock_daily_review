@@ -244,7 +244,7 @@ class AStockData:
                 continue
             row = normalize_package(quote)
             row.update(underlying_symbol=("sh" if stock.startswith(("6", "9")) else "sz") + stock,
-                       listing_date=listing, delist_date=delist, price_basis="通达信不复权转债净价；不含付息")
+                       listing_date=listing, delist_date=delist, price_basis="通达信转债收盘报价（全价）；收益未另计已支付票息现金流及再投资")
             rows.append(row)
         source = self.provenance("convertibles", list(package.values()))
         source.extend(self.provenance("convertible_mapping", mapping, revision=CB_REVISION))
@@ -252,11 +252,11 @@ class AStockData:
                 "rows": rows, "universe_complete": False, "eligible_mapping_count": eligible,
                 "missing_quote_count": unmatched, "uncertain_mapping_count": uncertain,
                 "mapping_filter_date": day, "provenance": source,
-                "observations": ["转债使用报告日通达信盘后包净价，仅纳入可验证上市、未摘牌且有成交的样本；不含票息。",
+                "observations": ["转债使用报告日通达信盘后包收盘报价，仅纳入可验证上市、未摘牌且有成交的样本；收益未另计已支付票息现金流及再投资。",
                                  "正股由转债映射去重；仅统计同日 A 股样本中可取得的正股。",
                                  "映射来自当前东财全表（含已摘牌）；不是历史时点名册，历史覆盖完整性未经核验。",
                                  f"可识别在市转债 {eligible} 只，缺少有效当日报价 {unmatched} 只，上市/摘牌或正股映射不明 {uncertain} 只。",
-                                 "转债及正股没有经验证的同口径复权历史，年/月/周统计留空。"]}
+                                 "转债历史日线及正股复权历史尚未接入，年/月/周统计留空。"]}
 
     @staticmethod
     def _positive(value):
