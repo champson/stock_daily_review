@@ -1,10 +1,6 @@
-继续联调股票复盘系统，分支 codex/stock-review-foundation。
-最新用户约定（覆盖原来的仅通达信要求）：行情优先使用 https://github.com/simonlin1212/a-stock-data，通达信官方 MCP 作为备选。综合市场复盘，A股、ETF、股指期货和期权；北京时间 Asia/Shanghai 18:00 周一至周五触发，按完整交易日历跳过休市；不下单交易。
-已固定 a-stock-data V3.10.2 / 29b07d2e37005b9fd568bca1262f6e572b5f9407 的选用代码及许可，保存在 review/vendor/。实际接口为腾讯、通达信官网盘后包、深交所及中金所。已生成2026-10-13真实日报：8指数、5560只A股样本、11ETF、16股指期货、676指数期权，零校验剔除。报告 partial：完整A股名册、行业分类、同日NAV、ETF期权链、准确到期日和IV尚缺。无到期日不计算PCR。
-深交所整月日历曾503，实际日报运行恢复成功；review/calendar.py 可严格解析通达信官网完整年度休市表作为备选。未知/不完整年度失败，不猜测普通工作日开市。
-通达信 MCP URL 已确认 https://mcp.tdx.com.cn:3001/mcp，无需再问URL。initialize/tools/list成功，仅发现tdx_wenda_quotes，快照config/mcp-discovery.json。实际查询 MISSING_API_KEY；用户说会配置 TDX_MCP_TOKEN 后通知。官方auth请求头尚待确认，不猜Bearer，映射仍空。备用MCP只允许tdx.com.cn HTTPS，不用第三方MCP。
-Site ID已原样持久化在site/.openai/hosting.json，必须复用。独立Vinext目录/workspace/sites/stock-closing-review；目录缺失时用Site source helper从空目录恢复。R2绑定按当前starter格式为字符串BUCKET，D1 null；保留平台构建与身份集成，删除starter app/page.tsx。保持owner-private，不重复create_site。
-继续时先get_site核对实时发布、权限及automations状态。按最新Sites技能用source helper通过隐藏stdin传短期Git凭据，构建打包，保存部署私有版本；不要把密钥写文件。Native结果成功且返回URL才可称在线，无control-browser则说明未做浏览器交互验证。
-按CLOUD_RUN.txt执行采集；review.publish通过隐藏stdin接收本站get_site的service access token，拒绝重定向，写入后完整读回比对。验证新的空目录可恢复本站源代码和配置。
-只有真实源、writer/readback和后续源码恢复都验证通过，才get_site再次检查automations。缺失/null不得创建；已有任务避免重复并保持暂停状态。无重复任务时用sites_create_schedule关联18:00北京时间周一至周五任务。保存和启用状态只以工具返回为准。
-测试：python3 -m unittest discover -s tests -v；node site/tests/report-validation.test.mjs。采集依赖requirements.txt，在work/内建venv。
+继续维护股票复盘系统。代码的唯一维护入口为 GitHub champson/stock_daily_review 的 main；既有Site ID原样保存在根目录 .openai/hosting.json。不可新建替代Site或强制覆盖远端历史。
+线上v1已完整同步进GitHub，包含Vinext、锁文件、Sites集成、Python采集器和CLOUD_RUN.txt；旧PR #1是未完成框架，不用于部署。
+先读取当前Sites与Cloud技能。源码更新采用README与docs/CI.md中的流程：GitHub main成功构建制品→核对release.json→以隐藏stdin取得此Site的source credential→执行scripts/sync-sites-source.mjs，推送同一个GitHub SHA到Sites源仓库→native save_site_version→按get_site实际受众部署→scripts/verify_live_release.py核对线上SHA、tree、报告读取和写入授权。
+源仓库有不在GitHub中的新提交时停止并先做差异同步；不使用force push。发布制品必须来自清洁的已提交源码，校验哈希和项目ID；版本/密钥不写入hosting.json或客户端代码。保留BUCKET和reports/布局以及现有日报任务，不重复创建任务。
+日报运行按CLOUD_RUN.txt，只更新数据，不重新发布代码。网站当前可公开阅读，报告写入必须通过REVIEW_WRITE_TOKEN鉴权；不再依赖旧owner-private假设。该secret由Site service token按review.publish.derive_write_token派生，原service token轮换后需同步重配secret并部署，凭据不落盘。
+通达信备用MCP仅使用用户确认的 https://mcp.tdx.com.cn:3001/mcp；主源与数据覆盖限制见README。不得回退第三方MCP，不下单交易。

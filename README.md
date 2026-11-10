@@ -10,7 +10,7 @@
 
 深交所整月日历曾返回 503，随后实际日报运行已恢复并成功校验；备选采用通达信官网完整年度休市表，必须同时覆盖沪深北及中金所、包含全部主要节假日。未发布或不完整的年度会失败，不按普通工作日猜测开市。
 
-站点 ID 保存在 `site/.openai/hosting.json`，保持 owner-private，R2 绑定为 `BUCKET`。部署与任务的实时状态以 `get_site` 为准。独立 Vinext 目录为 `/workspace/sites/stock-closing-review`；目录缺失时使用该 Site 的 source helper 恢复，不能重复创建 Site。
+站点 ID 保存在根目录 `.openai/hosting.json`，R2 绑定为 `BUCKET`。当前网站可公开阅读，报告写入使用独立服务端校验。访问受众与任务实时状态以 `get_site` 为准，更新时保留现有设置。
 
 ## 当前覆盖限制
 
@@ -51,4 +51,39 @@ probe 参数文件只含查询问题和分页等业务字段，不能包含密�
 
 `review.publish` 通过隐藏 stdin 接收 url、token、report_path。Token 只从本站 get_site 的 siwc_bypass_bearer_token 取得，用 OAI-Sites-Authorization 发送；拒绝所有重定向，凭据不落盘。写入后对整份报告读回比对。代码变化才重新部署，日常只更新 R2。
 
-后续任务从本站 source repository 获取固定源码及 requirements.txt，按 CLOUD_RUN.txt 执行。只有真实源、无人值守写入回读及源码恢复验证完成后，才检查关联 automations 并创建缺失的 18:00 任务。任务启用状态以 native 工具为准。
+后续任务从本站已部署版本恢复固定源码及 requirements.txt，按 CLOUD_RUN.txt 执行。现有18:00任务保留，不重复创建。任务启用状态以 native 工具为准。
+
+
+## GitHub 与 Sites 发布
+
+GitHub `main` 是唯一维护分支。线上v1的完整树已由PR #2导入，保留双方历史；旧PR #1只保留作历史参考。不要直接在Sites源仓库另行修改源码。
+
+1. 在GitHub提交改动并合并到`main`。Actions执行离线测试、锁定依赖安装和生产构建，生成`site-release-<完整SHA>`制品，内含`site-release.tar`和`release.json`。详见[CI说明](docs/CI.md)。
+2. 在可用Cloud环境中取回该GitHub提交及其成功的构建制品，确认`release.json`中的项目ID、完整SHA、tree和tar SHA-256。也可在同一清洁提交本地执行：
+
+   ```bash
+   npm run install:ci
+   node scripts/prepare-site-release.mjs --output /absolute/path/site-release.tar
+   ```
+
+3. 用原Site的`create_source_repository_write_credential`取得短期访问，通过隐藏stdin运行：
+
+   ```bash
+   node scripts/sync-sites-source.mjs --archive /absolute/path/site-release.tar --release /absolute/path/release.json
+   ```
+
+   stdin格式为`{"credential": 原样返回的凭据对象}`。脚本只接受当前GitHub main和匹配项目/制品；源库存在未同步的新提交时拒绝推送；不force push、不落盘凭据。
+4. 使用脚本返回的精确`project_id`、`commit_sha`、`archive`调用原生`save_site_version`。按`get_site`实际受众选择部署工具。GitHub Actions仅构建受检制品，当前不持有Sites凭据，也不声称一次GitHub push就完成生产发布；最终发布通过本会话的Sites原生工具执行。
+5. 发布成功后验证：
+
+   ```bash
+   python3 scripts/verify_live_release.py --url https://stock-closing-review.rong-yang73.chatgpt.site --release /absolute/path/release.json --with-service-access
+   ```
+
+   按隐藏stdin提示传入`{"token": get_site的service token}`。验证`/api/build-info`与GitHub完整SHA/tree相等、页面及历史报告可读、匿名写入返回401、服务身份能进入Schema校验；用空对象检查，不创建日报记录。原生Site保存版本同时记录同一提交，GitHub与Sites源库因此使用同一个SHA。
+
+`GET /api/build-info`返回公开的提交、tree、项目ID和构建时间，用于排查代码漂移。运行中密钥、日报数据和工作目录不进入GitHub或发布制品。
+
+生产secret `REVIEW_WRITE_TOKEN` 存在Sites环境设置中，值使用`review.publish.derive_write_token`由本站service token派生；不写入源码、CI或浏览器。`review.publish`自动派生并附加应用写入头。service token轮换时，重新配置派生secret并部署以应用新环境版本。公开读接口不暴露该凭据。
+
+回滚使用Sites已保存版本，并核对其源码及运行环境。v1仅保留作迁移基线，其写入路由依赖旧的私有访问假设，不应作为公开站点的长期回滚目标。

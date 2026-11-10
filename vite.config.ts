@@ -1,4 +1,5 @@
 import vinext from "vinext";
+import { getBuildInfo } from "./scripts/build-info.mjs";
 import { defineConfig } from "vite";
 import hostingConfig from "./.openai/hosting.json";
 import { readExecutionProfile } from "./scripts/execution-profile.mjs";
@@ -52,6 +53,7 @@ export default defineConfig(async ({ command }) => {
   const { cloudflare } = await import("@cloudflare/vite-plugin");
 
   return {
+    define: { __REVIEW_BUILD_INFO__: JSON.stringify(getBuildInfo()) },
     server: {
       ...(managedLinux
         ? { host: "0.0.0.0", allowedHosts: ["terminal.local"] }

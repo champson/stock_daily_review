@@ -1,4 +1,6 @@
-"""通过隐藏 stdin 接收 Site service token；凭据不落盘。"""
+"""通过隐藏 stdin 接收 Site service token，派生写入授权；凭据不落盘。"""
+import hashlib
+import hmac
 import json
 import sys
 import urllib.request
@@ -9,10 +11,16 @@ from .analysis import validate_rows, LABELS
 from .mcp_client import NoRedirect
 
 
+def derive_write_token(service_token):
+    if not isinstance(service_token, str) or not service_token:
+        raise ValueError("需要此 Site 的 service access token")
+    return hmac.new(service_token.encode("utf-8"), b"stock-review:write:v1", hashlib.sha256).hexdigest()
+
+
 def publish(url, token, report):
     parsed = urlsplit(url)
-    if parsed.scheme != "https" or not parsed.hostname or parsed.username or parsed.password or parsed.query or parsed.fragment or parsed.path not in ("", "/") or not token:
-        raise ValueError("需要此私有 Site 的 HTTPS 地址与 service access token")
+    if parsed.scheme != "https" or not parsed.hostname or parsed.username or parsed.password or parsed.query or parsed.fragment or parsed.path not in ("", "/") or not isinstance(token, str) or not token:
+        raise ValueError("需要此 Site 的 HTTPS 地址与 service access token")
     if report.get("status") == "unavailable" or report.get("skipped"):
         raise ValueError("无有效行情或休市时，不写入报告")
     samples = 0
@@ -26,7 +34,7 @@ def publish(url, token, report):
         raise ValueError("无有效行情时，不写入报告")
     # Sites 凭据只能发送给 get_site 返回的站点；拒绝所有重定向。
     opener = urllib.request.build_opener(NoRedirect())
-    headers = {"OAI-Sites-Authorization": "Bearer " + token, "Content-Type": "application/json"}
+    headers = {"OAI-Sites-Authorization": "Bearer " + token, "X-Review-Write-Token": derive_write_token(token), "Content-Type": "application/json"}
     request = urllib.request.Request(url.rstrip("/") + "/api/reports", json.dumps(report, ensure_ascii=False, allow_nan=False).encode(), headers, method="POST")
     try:
         with opener.open(request, timeout=45) as response:
@@ -50,7 +58,7 @@ def main():
         attrs = termios.tcgetattr(sys.stdin.fileno())
         attrs[3] &= ~termios.ECHO
         termios.tcsetattr(sys.stdin.fileno(), termios.TCSANOW, attrs)
-    print("Ready for private Site publishing JSON on stdin (input is hidden).", flush=True)
+    print("Ready for Site publishing JSON on stdin (input is hidden).", flush=True)
     try:
         options = json.loads(sys.stdin.readline())
         report = json.loads(Path(options["report_path"]).read_text())
@@ -58,7 +66,7 @@ def main():
         print(json.dumps({"saved": saved, "verified": True}, ensure_ascii=False))
         return 0
     except (ValueError, KeyError, OSError):
-        print("发布失败；请检查行情格式、私有站点访问及网络配置。", file=sys.stderr)
+        print("发布失败；请检查行情格式、站点访问、写入授权及网络配置。", file=sys.stderr)
         return 1
 
 
