@@ -54,6 +54,8 @@ probe 参数文件只含查询问题和分页等业务字段，不能包含密�
 
 页面支持资产切换、历史日期、搜索、图表、JSON 导出和数据状态；不包含模拟行情。GET /api/reports 返回原始日报、历史日期及派生字段market_matrix；POST 校验有效行情，按日期、生成时间与哈希保存不可变版本并读回；GET /api/workflow 提供后续任务的非敏感运行约定。
 
+指数趋势默认中证1000，支持切换报告中已取得的多个指数；同一指数的价格与成交量曲线按相同的最近60个日期对齐，成交量在价格下方单独缩放。腾讯指数历史成交量单位为手，显示时按数值选用手、万手或亿手；缺失日期不跨点连线，零成交量不当作缺失。旧报告未保存成交量时保留明确说明，不从成交额推算。详见[指数成交量口径](docs/index-volume.md)。
+
 `review.publish` 通过隐藏 stdin 接收 url、token、report_path。Token 只从本站 get_site 的 siwc_bypass_bearer_token 取得，用 OAI-Sites-Authorization 发送；拒绝所有重定向，凭据不落盘。写入后对整份报告读回比对。代码变化才重新部署，日常只更新 R2。
 
 后续任务从本站已部署版本恢复固定源码及 requirements.txt，按 CLOUD_RUN.txt 执行。现有18:00任务保留，不重复创建。任务启用状态以 native 工具为准。

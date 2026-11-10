@@ -178,7 +178,10 @@ class AStockData:
                 row = {"symbol": symbol, "name": item["name"], "date": day, "close": close,
                        "previous_close": quote["prev_close"] if quote else history[-2]["close"] if len(history) > 1 else None,
                        "amount": quote["amount"] if quote else None, "provider": "tencent",
-                       "price_basis": "腾讯不复权指数日线", "history": [{"date": r["date"], "close": r["close"]} for r in history]}
+                       "price_basis": "腾讯不复权指数日线", "volume_unit": "手",
+                       "history": [{"date": r["date"], "close": r["close"],
+                                    "volume": r.get("volume") if self._nonnegative(r.get("volume")) else None}
+                                   for r in history]}
                 rows.append(row)
                 sources.extend(self.provenance("indices", history))
             except (RuntimeError, ValueError, OSError) as exc:
@@ -349,6 +352,10 @@ class AStockData:
     @staticmethod
     def _positive(value):
         return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value) and value > 0
+
+    @staticmethod
+    def _nonnegative(value):
+        return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value) and value >= 0
 
     def etfs(self, day):
         package = self.package(day)
