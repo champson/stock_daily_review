@@ -24,3 +24,25 @@ test('rejects stale, duplicate and non-finite rows',()=>{
 test('rejects a report marked unavailable',()=>{
   const r=fixture();r.status='unavailable';assert.throws(()=>validateReport(r));
 });
+test('validates optional convertible quotes and mapping dates without requiring extras in legacy reports',()=>{
+  const r=fixture();
+  r.market_data={convertibles:{status:'partial',sample_size:1,mapping_filter_date:r.date,observations:[],rows:[{symbol:'sz123001',underlying_symbol:'sz300001',date:r.date,close:110,previous_close:100}]}};
+  validateReport(r);
+  const stale=structuredClone(r);stale.market_data.convertibles.mapping_filter_date='2026-10-12';assert.throws(()=>validateReport(stale),/映射日期/);
+  const duplicate=structuredClone(r);duplicate.market_data.convertibles.rows.push({...duplicate.market_data.convertibles.rows[0]});duplicate.market_data.convertibles.sample_size=2;assert.throws(()=>validateReport(duplicate),/可转债行情/);
+  const future=structuredClone(r);future.market_data.convertibles.rows[0].listing_date='2026-10-14';assert.throws(()=>validateReport(future),/上市范围/);
+  const noPrice=structuredClone(r);noPrice.market_data.convertibles.rows[0].close=0;assert.throws(()=>validateReport(noPrice),/可转债行情/);
+  const unavailable=fixture();unavailable.market_data={convertibles:{status:'unavailable',rows:[],sample_size:0,observations:[]}};validateReport(unavailable);
+});
+test('validates exact dated calendar anchors and a complete ordered25-day window',()=>{
+  const r=fixture(), dates=Array.from({length:25},(_,i)=>new Date(Date.parse(r.date)-(24-i)*86400000).toISOString().slice(0,10));
+  r.market_data={calendar_basis:{date:r.date,anchors:{year:'2025-12-31',month:'2026-09-30',week:'2026-10-09'},bias25_dates:dates,observations:[],provenance:[]}};
+  validateReport(r);
+  const stale=structuredClone(r);stale.market_data.calendar_basis.date='2026-10-12';assert.throws(()=>validateReport(stale),/交易日历/);
+  const insidePeriod=structuredClone(r);insidePeriod.market_data.calendar_basis.anchors.month='2026-10-01';assert.throws(()=>validateReport(insidePeriod),/周期锚点/);
+  const missingPeriod=structuredClone(r);delete missingPeriod.market_data.calendar_basis.anchors.year;assert.throws(()=>validateReport(missingPeriod),/周期锚点/);
+  const duplicate=structuredClone(r);duplicate.market_data.calendar_basis.bias25_dates[10]=dates[9];assert.throws(()=>validateReport(duplicate),/窗口日期/);
+  const short=structuredClone(r);short.market_data.calendar_basis.bias25_dates.pop();assert.throws(()=>validateReport(short),/基准格式/);
+  const wrongEnd=structuredClone(r);wrongEnd.market_data.calendar_basis.bias25_dates=dates.map(d=>new Date(Date.parse(d)-86400000).toISOString().slice(0,10));assert.throws(()=>validateReport(wrongEnd),/窗口末日/);
+  const unavailable=structuredClone(r);unavailable.market_data.calendar_basis.anchors={year:null,month:null,week:null};unavailable.market_data.calendar_basis.bias25_dates=[];validateReport(unavailable);
+});

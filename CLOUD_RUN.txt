@@ -10,3 +10,4 @@ a-stock-data 内部使用腾讯、通达信官网盘后包、深交所及中金�
 REVIEW_WRITE_TOKEN 是已配置在Sites的secret；若get_site的service token被轮换，须先由站点维护流程重新配置对应派生secret并部署。缺配置或认证失败时停止，不回退无鉴权写入。
 发布程序必须成功并完整读回一致。失败时保留历史报告。日常只写R2，不改站点代码、不重新部署。
 报告中标记 A股样本非全市场、ETF观察池范围、行业/NAV/ETF期权/到期日/IV等实际缺失；缺少到期日不计算PCR。
+市场统计总览按 docs/market-matrix.md 计算：可转债及正股映射为可选 market_data；映射或行情失败须保留明确缺失说明。无一致复权历史时不计算个股跨年/月/周收益，不以当日涨幅或零补齐；不采集个人实盘。GET返回的market_matrix是派生字段，发布读回仍核对原始report。
