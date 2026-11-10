@@ -22,12 +22,13 @@ export function prepareRelease({root=process.cwd(),output,check,build}={}){
   const hosting=JSON.parse(readFileSync(path.join(dist,'.openai/hosting.json'),'utf8'));
   if(hosting.project_id!==before.project_id)throw new Error('Built Site identity does not match source.');
   if(hosting.static){
-    if(!existsSync(path.join(dist,hosting.static.directory,'index.html')))throw new Error('Missing static entrypoint.');
+    if(!existsSync(path.join(root,hosting.static.directory,'index.html')))throw new Error('Missing static entrypoint.');
   }else if(!existsSync(path.join(dist,'server/index.js')))throw new Error('Missing Worker entrypoint.');
   mkdirSync(path.dirname(output),{recursive:true});
-  execFileSync('tar',['-cf',output,'-C',dist,'.'],{stdio:['ignore','pipe','pipe']});
-  const listing=execFileSync('tar',['-tf',output],{encoding:'utf8',stdio:['ignore','pipe','pipe']}).trim().split('\n');
-  if(!listing.includes('./.openai/hosting.json'))throw new Error('Release archive lacks hosting manifest.');
+  execFileSync('tar',['-cf',output,'-C',root,'.openai/hosting.json','dist'],{stdio:['ignore','pipe','pipe']});
+  const listing=execFileSync('tar',['-tf',output],{encoding:'utf8',stdio:['ignore','pipe','pipe']}).trim().split('\n').map(name=>name.replace(/^\.\//,''));
+  if(!listing.includes('.openai/hosting.json'))throw new Error('Release archive lacks hosting manifest.');
+  if(!hosting.static&&!listing.includes('dist/server/index.js'))throw new Error('Release archive lacks the supported dist/server/index.js entrypoint.');
   const release={...before,archive_file:path.basename(output),archive_sha256:createHash('sha256').update(readFileSync(output)).digest('hex'),archive_bytes:readFileSync(output).byteLength,artifact_file_count:listing.filter(n=>!n.endsWith('/')).length};
   const releasePath=path.join(path.dirname(output),'release.json');
   writeFileSync(releasePath,JSON.stringify(release,null,2)+'\n');
