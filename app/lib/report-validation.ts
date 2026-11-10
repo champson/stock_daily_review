@@ -42,6 +42,17 @@ export function validateReport(value: any): void {
       }
       if(calendar.bias25_dates.length && calendar.bias25_dates[24]!==value.date)throw new Error('交易日历25日窗口末日无效');
     }
+    const sectors=value.market_data.sector_indices;
+    if(sectors!==undefined) {
+      if(!sectors || sectors.date!==value.date || !['available','partial','unavailable'].includes(sectors.status) || !Array.isArray(sectors.rows) || !Number.isInteger(sectors.configured_count) || sectors.configured_count<0 || sectors.configured_count>1000 || sectors.rows.length>sectors.configured_count || sectors.sample_size!==sectors.rows.length || !Array.isArray(sectors.observations) || !Array.isArray(sectors.provenance))throw new Error('行业观察指数格式无效');
+      const previous=sectors.previous_trading_date;
+      if((sectors.rows.length>0 || previous!==undefined && previous!==null) && (!validDate(previous) || previous>=value.date || Date.parse(value.date)-Date.parse(previous)>20*86400000))throw new Error('行业观察指数前交易日无效');
+      const symbols=new Set<string>();
+      for(const row of sectors.rows) {
+        if(!row || row.date!==value.date || row.previous_date!==previous || typeof row.symbol!=='string' || !row.symbol || symbols.has(row.symbol) || typeof row.name!=='string' || !row.name || typeof row.close!=='number' || row.close<=0 || typeof row.previous_close!=='number' || row.previous_close<=0 || typeof row.change_pct!=='number' || Math.abs(row.change_pct-(row.close-row.previous_close)/row.previous_close*100)>0.000051)throw new Error('行业观察指数日期、价格或涨跌幅无效');
+        symbols.add(row.symbol);
+      }
+    }
     const s=value.market_data.convertibles;
     if(s!==undefined) {
       if(!s || !['available','partial','unavailable'].includes(s.status) || !Array.isArray(s.rows) || s.rows.length>20000 || s.sample_size!==s.rows.length || !Array.isArray(s.observations) || (s.rows.length>0 && s.mapping_filter_date!==value.date) || (s.mapping_filter_date!==undefined && s.mapping_filter_date!==value.date) || (s.date!==undefined && s.date!==value.date))throw new Error('可转债补充数据格式或映射日期无效');

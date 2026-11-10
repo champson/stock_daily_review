@@ -8,6 +8,36 @@ function fixture() {
   sections.indices={status:'available',rows:[{symbol:'fixture',date:'2026-10-13',close:1}],sample_size:1,metrics:{},observations:[]};
   return {schema_version:1,date:'2026-10-13',generated_at:'2026-10-13T18:00:00+08:00',source:'通达信 MCP',timezone:'Asia/Shanghai',status:'partial',sections};
 }
+
+function sectorFixture() {
+  const r=fixture();
+  r.market_data={sector_indices:{date:r.date,status:'available',configured_count:1,sample_size:1,
+    previous_trading_date:'2026-10-12',observations:[],provenance:[],rows:[{
+      symbol:'sh000986',name:'中证全指能源指数',date:r.date,previous_date:'2026-10-12',
+      close:110,previous_close:100,change_pct:10,
+    }]}};
+  return r;
+}
+test('accepts dated industry indices and unavailable supplementary data without changing legacy reports',()=>{
+  validateReport(sectorFixture());
+  const empty=sectorFixture().market_data.sector_indices;empty.rows=[];empty.sample_size=0;empty.status='unavailable';empty.previous_trading_date=null;
+  validateReport({...fixture(),market_data:{sector_indices:empty}});
+  validateReport(fixture());
+});
+test('rejects stale sector quotes, incorrect return anchors, duplicates and inconsistent calculated returns',()=>{
+  for(const mutate of [
+    s=>{s.date='2026-10-12'},
+    s=>{s.rows[0].date='2026-10-12'},
+    s=>{s.rows[0].previous_date='2026-10-09'},
+    s=>{s.previous_trading_date='2026-09-01';s.rows[0].previous_date='2026-09-01'},
+    s=>{s.rows[0].change_pct=11},
+    s=>{s.rows[0].previous_close=0},
+    s=>{s.rows.push({...s.rows[0]});s.sample_size=2;s.configured_count=2},
+    s=>{s.configured_count=0},
+  ]) {
+    const r=sectorFixture();mutate(r.market_data.sector_indices);assert.throws(()=>validateReport(r));
+  }
+});
 test('accepts a dated partial report and rejects impossible dates',()=>{
   validateReport(fixture());
   assert.equal(validDate('2026-02-30'),false);
