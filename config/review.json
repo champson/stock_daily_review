@@ -54,6 +54,18 @@
       {
         "symbol": "sh000688",
         "name": "科创50"
+      },
+      {
+        "symbol": "sh932000",
+        "name": "中证2000"
+      },
+      {
+        "symbol": "sh000985",
+        "name": "中证全指"
+      },
+      {
+        "symbol": "bj899050",
+        "name": "北证50"
       }
     ],
     "etfs": [
@@ -68,6 +80,7 @@
       "sz159949",
       "sh512880",
       "sh515000"
-    ]
+    ],
+    "convertible_mapping_revision": "f21534946c42be3ad048ac938eecb1bad84cb8ab"
   }
 }

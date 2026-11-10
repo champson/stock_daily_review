@@ -72,8 +72,24 @@ def build_report(config, day, primary=None, fallback_factory=None):
         sections[kind] = section
         provenance.extend(data.get("provenance", []))
         used.add(provider)
-    return {"schema_version": 1, "date": day, "generated_at": datetime.now(ZoneInfo("Asia/Shanghai")).isoformat(),
+    # Optional supplementary data must not make a valid main report unavailable.
+    # Checking the type also keeps custom/mock primary collectors backwards compatible.
+    market_data = None
+    extra = getattr(type(primary), "market_data", None)
+    if callable(extra):
+        try:
+            market_data = primary.market_data(day)
+            if not isinstance(market_data, dict):
+                raise TypeError("附加市场数据必须为对象")
+        except (RuntimeError, ValueError, KeyError, TypeError, OSError) as exc:
+            market_data = {"convertibles": {"status": "unavailable", "rows": [], "sample_size": 0,
+                                           "universe_complete": False,
+                                           "observations": [f"附加市场统计数据不可用：{type(exc).__name__}：{exc}"]}}
+    report = {"schema_version": 1, "date": day, "generated_at": datetime.now(ZoneInfo("Asia/Shanghai")).isoformat(),
             "timezone": "Asia/Shanghai", "source": "a-stock-data / 通达信 MCP" if len(used) > 1 else next(iter(used), "a-stock-data"),
             "source_priority": ["a-stock-data", "通达信 MCP"], "calendar": calendar,
             "status": "complete" if all(s["status"] == "available" for s in sections.values()) else "partial" if used else "unavailable",
             "sections": sections, "provenance": provenance, "errors": errors}
+    if market_data is not None:
+        report["market_data"] = market_data
+    return report

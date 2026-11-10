@@ -25,5 +25,33 @@ export function validateReport(value: any): void {
     }
     samples+=s.rows.length;
   }
+  if(value.market_data!==undefined) {
+    if(!value.market_data || typeof value.market_data!=='object' || Array.isArray(value.market_data))throw new Error('市场补充数据格式无效');
+    const calendar=value.market_data.calendar_basis;
+    if(calendar!==undefined) {
+      if(!calendar || calendar.date!==value.date || !calendar.anchors || typeof calendar.anchors!=='object' || Array.isArray(calendar.anchors) || !Array.isArray(calendar.bias25_dates) || ![0,25].includes(calendar.bias25_dates.length) || !Array.isArray(calendar.observations) || !Array.isArray(calendar.provenance))throw new Error('交易日历统计基准格式无效');
+      const monday=new Date(value.date+'T00:00:00Z');monday.setUTCDate(monday.getUTCDate()-(monday.getUTCDay()+6)%7);
+      const starts={year:value.date.slice(0,4)+'-01-01',month:value.date.slice(0,7)+'-01',week:monday.toISOString().slice(0,10)};
+      for(const period of ['year','month','week'] as const) {
+        const anchor=calendar.anchors[period];
+        if(anchor!==null && (!validDate(anchor) || anchor>=starts[period]))throw new Error('交易日历周期锚点无效');
+      }
+      for(let i=0;i<calendar.bias25_dates.length;i++) {
+        const date=calendar.bias25_dates[i];
+        if(!validDate(date) || date>value.date || (i>0 && date<=calendar.bias25_dates[i-1]))throw new Error('交易日历25日窗口日期无效');
+      }
+      if(calendar.bias25_dates.length && calendar.bias25_dates[24]!==value.date)throw new Error('交易日历25日窗口末日无效');
+    }
+    const s=value.market_data.convertibles;
+    if(s!==undefined) {
+      if(!s || !['available','partial','unavailable'].includes(s.status) || !Array.isArray(s.rows) || s.rows.length>20000 || s.sample_size!==s.rows.length || !Array.isArray(s.observations) || (s.rows.length>0 && s.mapping_filter_date!==value.date) || (s.mapping_filter_date!==undefined && s.mapping_filter_date!==value.date) || (s.date!==undefined && s.date!==value.date))throw new Error('可转债补充数据格式或映射日期无效');
+      const symbols=new Set<string>();
+      for(const row of s.rows) {
+        if(!row || row.date!==value.date || typeof row.symbol!=='string' || !row.symbol || symbols.has(row.symbol) || typeof row.close!=='number' || row.close<=0 || (row.underlying_symbol!==undefined && (typeof row.underlying_symbol!=='string' || !row.underlying_symbol)))throw new Error('可转债行情日期、代码或价格无效');
+        if((row.listing_date!==undefined && row.listing_date!==null && (!validDate(row.listing_date) || row.listing_date>value.date)) || (row.delist_date!==undefined && row.delist_date!==null && (!validDate(row.delist_date) || row.delist_date<=value.date)) || ['upcoming','delisted'].includes(row.status))throw new Error('可转债不属于报告日上市范围');
+        symbols.add(row.symbol);
+      }
+    }
+  }
   if(!samples)throw new Error('没有有效行情，不写入报告');
 }

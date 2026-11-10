@@ -1,11 +1,12 @@
 import {env} from 'cloudflare:workers';
 import {readReport,writeReport,validDate} from '../../lib/reports';
 import {authorizeReportWrite} from '../../lib/write-auth';
+import {buildMarketMatrix} from '../../lib/market-matrix';
 export const dynamic = 'force-dynamic';
 export async function GET(request:Request) {
   const date=new URL(request.url).searchParams.get('date')||undefined;
   if(date&&!validDate(date))return Response.json({error:'报告日期无效'},{status:400});
-  try{return Response.json(await readReport(date),{headers:{'cache-control':'no-store'}})}catch{return Response.json({error:'报告存储暂不可用'},{status:503})}
+  try{const data=await readReport(date);return Response.json({...data,market_matrix:buildMarketMatrix(data.report)},{headers:{'cache-control':'no-store'}})}catch{return Response.json({error:'报告存储暂不可用'},{status:503})}
 }
 // Sites service access and report-write authorization are separate permissions.
 // Validate the configured write secret before consuming the request body.
