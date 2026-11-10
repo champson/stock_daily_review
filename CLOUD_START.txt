@@ -1,0 +1,10 @@
+继续联调股票复盘系统，分支 codex/stock-review-foundation。
+最新用户约定（覆盖原来的仅通达信要求）：行情优先使用 https://github.com/simonlin1212/a-stock-data，通达信官方 MCP 作为备选。综合市场复盘，A股、ETF、股指期货和期权；北京时间 Asia/Shanghai 18:00 周一至周五触发，按完整交易日历跳过休市；不下单交易。
+已固定 a-stock-data V3.10.2 / 29b07d2e37005b9fd568bca1262f6e572b5f9407 的选用代码及许可，保存在 review/vendor/。实际接口为腾讯、通达信官网盘后包、深交所及中金所。已生成2026-10-13真实日报：8指数、5560只A股样本、11ETF、16股指期货、676指数期权，零校验剔除。报告 partial：完整A股名册、行业分类、同日NAV、ETF期权链、准确到期日和IV尚缺。无到期日不计算PCR。
+深交所整月日历曾503，实际日报运行恢复成功；review/calendar.py 可严格解析通达信官网完整年度休市表作为备选。未知/不完整年度失败，不猜测普通工作日开市。
+通达信 MCP URL 已确认 https://mcp.tdx.com.cn:3001/mcp，无需再问URL。initialize/tools/list成功，仅发现tdx_wenda_quotes，快照config/mcp-discovery.json。实际查询 MISSING_API_KEY；用户说会配置 TDX_MCP_TOKEN 后通知。官方auth请求头尚待确认，不猜Bearer，映射仍空。备用MCP只允许tdx.com.cn HTTPS，不用第三方MCP。
+Site ID已原样持久化在site/.openai/hosting.json，必须复用。独立Vinext目录/workspace/sites/stock-closing-review；目录缺失时用Site source helper从空目录恢复。R2绑定按当前starter格式为字符串BUCKET，D1 null；保留平台构建与身份集成，删除starter app/page.tsx。保持owner-private，不重复create_site。
+继续时先get_site核对实时发布、权限及automations状态。按最新Sites技能用source helper通过隐藏stdin传短期Git凭据，构建打包，保存部署私有版本；不要把密钥写文件。Native结果成功且返回URL才可称在线，无control-browser则说明未做浏览器交互验证。
+按CLOUD_RUN.txt执行采集；review.publish通过隐藏stdin接收本站get_site的service access token，拒绝重定向，写入后完整读回比对。验证新的空目录可恢复本站源代码和配置。
+只有真实源、writer/readback和后续源码恢复都验证通过，才get_site再次检查automations。缺失/null不得创建；已有任务避免重复并保持暂停状态。无重复任务时用sites_create_schedule关联18:00北京时间周一至周五任务。保存和启用状态只以工具返回为准。
+测试：python3 -m unittest discover -s tests -v；node site/tests/report-validation.test.mjs。采集依赖requirements.txt，在work/内建venv。

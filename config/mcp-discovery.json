@@ -1,0 +1,176 @@
+{
+  "server": "https://mcp.tdx.com.cn:3001/mcp",
+  "tools": [
+    {
+      "name": "tdx_wenda_quotes",
+      "description": "通达信问小达MCP服务是面向金融投资领域的专业数据接口。\n\n**使用说明：本工具每次查询仅支持单个品种（单只股票/单个板块等），如需对比多只个股或多维度分析，请分多次调用后综合结果。**\n\n## 一、支持的查询类型\n1. **基础行情查询**\n   - A股个股：最新价、涨跌幅、成交量等\n   - 港股个股：实时行情、涨跌幅度等\n   - 板块指数：行业/概念板块行情\n   - 市场整体：涨跌家数、成交量等\n\n2. **财务指标查询**\n   - 核心指标：PE、PB、ROE等\n   - 利润表：营收、净利润等\n   - 资产负债表：总资产、负债率等\n\n3. **技术分析查询**\n   - 技术指标：MACD、KDJ、RSI等\n   - 形态识别：突破、金叉等\n   - 量价分析：量比、换手率等\n\n4. **专业分析查询**\n   - 产业链分析：上下游关联查询\n   - 主题风格：热点概念股查询\n   - 资金流向：主力/北向资金\n\n## 二、支持的市场范围\n1. **A股市场（AG）**\n   - 沪深主板、创业板、科创板、北交所\n2. **港股市场（HK-GP）**\n   - 港交所主板、创业板\n3. **基金市场（JJ）**\n   - 公募基金、ETF等\n4. **指数市场（ZS）**\n   - 各类市场指数\n\n## 三、返回数据结构\n{\n  \"meta\": {\n    \"code\": 0,\n    \"total\": 54,\n    \"message\": \"查询成功\"\n  },\n  \"headers\": [\"板型\", \"封成比\", \"sec_name\"],\n  \"data\": [\n    [\"一字板(涨停)\", \"263.8876\", \"华贸物流\"],\n    [\"一字板(涨停)\", \"329.0969\", \"浔兴股份\"]\n  ],\n  \"summary\": \"共找到54条记录\",\n  \"visualization\": {\n    \"type\": \"table\",\n    \"options\": {\n      \"sortable\": true,\n      \"paginated\": true,\n      \"pageSize\": \"10\",\n      \"currentPage\": \"1\"\n    }\n  }\n}\n\n响应数据结构说明：\n1. meta: 元信息，包含状态码、结果总数等\n2. headers: 表头字段名称数组\n3. data: 数据行数组，每行对应一条记录\n4. summary: 结果摘要信息\n5. visualization: 可视化建议，包含推荐的展示类型和选项\n\n## 数据处理建议：\n1. 调用前：\n  • 分析用户意图，确定需要查询的信息以及维度\n  • 判断是否需要按要求对输入内容进行适当的改写查询以获取更多必要的信息\n2. 响应后：\n  • 结构化数据建议以表格呈现\n  • 文本信息保持原格式\n  • 复杂数据可结合可视化图表",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "question": {
+            "type": "string",
+            "minLength": 1,
+            "description": "请按以下规则改写查询内容（注意：单次调用仅支持单个品种）：\n1. 单只个股查询：\n   • 格式：[股票名称/代码]+[查询内容]\n   • 支持多条件组合，使用逻辑运算符(且/或)\n   • A股示例：\"贵州茅台600519市盈率<20且ROE>15%\"\n   • 港股示例：\"腾讯控股00700最新行情\"或\"港交所00388成交量\"\n\n2. 多只个股对比：\n   • 必须拆分为独立查询\n   • 示例：\"比较茅台和五粮液\"→拆分为\"贵州茅台财务数据\"和\"五粮液财务数据\"\n\n3. 行业/板块查询：\n   • 格式：[行业名称]+[指标]\n   • 示例：\"半导体行业PE中位数\"\n\n4. 复杂条件处理：\n   • 不同时间范围→按时间拆分（如\"近3年业绩\"→按年拆分）\n   • 不同数据维度→合理拆分查询（如\"行情和财务\"）\n   • 逻辑冲突条件→拒绝执行（如\"PE<10且PE>20\"）\n   • 无数据交集→ 必须拆分为独立查询（如\"涨停的多还是跌停的多\"）\n\n5. 开放性问题转换：\n   • 分析所需数据维度\n   • 转换为相关查询组合\n   • 示例：\"紫光股份接下来怎么办\"→\"紫光股份最新行情+研报\"\n   • 示例：\"市场情绪如何\"→\"涨停家数+跌停家数+成交量\"\n\n6. 特殊场景处理：\n   • 涨跌停对比→分别查询涨停/跌停列表\n   • 资金流向分析→拆分为主力/北向资金查询\n   • 行业排名→按指标排序后取前N名\n   • 港股查询→需要在range参数中指定\"HK-GP\""
+          },
+          "range": {
+            "default": "AG",
+            "description": "市场类别选择指南：\n1. AG: A股市场（默认）\n2. HK-GP: 港股市场\n3. JJ: 基金市场\n4. ZS: 指数市场\n根据查询内容自动选择：\n• A股个股查询→AG\n• 港股查询→HK-GP\n• 基金查询→JJ\n• 指数查询→ZS",
+            "type": "string"
+          },
+          "page": {
+            "description": "分页控制说明：\n1. 默认从第1页开始\n2. 大数据集建议分页（如每页10条）\n3. 取值范围：1~N",
+            "default": "1",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "number"
+              }
+            ]
+          },
+          "size": {
+            "description": "每页数量说明：\n1. 默认10条/页\n2. 大数据量建议较小值\n3. 取值范围：1-100",
+            "default": "10",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "number"
+              }
+            ]
+          }
+        },
+        "required": [
+          "question"
+        ]
+      },
+      "annotations": {},
+      "execution": {
+        "taskSupport": "forbidden"
+      },
+      "_meta": {
+        "apiEndpoint": "http://114.132.96.116:7615/TQLEX?Entry=JNLPSE:wendaQuery",
+        "timeout": 30000,
+        "rateLimit": "100 requests/minute",
+        "lastUpdated": "2026-01-21",
+        "category": "financial",
+        "tags": [
+          "stock",
+          "quotes",
+          "financial-analysis"
+        ],
+        "version": "1.0.0",
+        "author": "通达信金融服务"
+      },
+      "outputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "meta": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "number"
+              },
+              "total": {
+                "type": "number"
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "total"
+            ],
+            "additionalProperties": false
+          },
+          "headers": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "number"
+                  }
+                ]
+              }
+            }
+          },
+          "summary": {
+            "type": "string"
+          },
+          "visualization": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string"
+              },
+              "options": {
+                "type": "object",
+                "properties": {
+                  "sortable": {
+                    "type": "boolean"
+                  },
+                  "paginated": {
+                    "type": "boolean"
+                  },
+                  "pageSize": {
+                    "type": "string"
+                  },
+                  "currentPage": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "sortable",
+                  "paginated",
+                  "pageSize",
+                  "currentPage"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "type",
+              "options"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "meta",
+          "headers",
+          "data"
+        ],
+        "additionalProperties": false
+      }
+    }
+  ],
+  "initialization": {
+    "protocolVersion": "2024-11-05",
+    "capabilities": {
+      "tools": {
+        "listChanged": true
+      }
+    },
+    "serverInfo": {
+      "name": "wenda-mcp-server",
+      "version": "1.0.0"
+    }
+  },
+  "discovered_at": "2026-10-14T04:33:43.268193+08:00"
+}

@@ -1,0 +1,10 @@
+更新收盘之后的真实日报：a-stock-data 优先，通达信官方 MCP 备选；不下单交易。
+从运行时提供的 Site ID 调用 get_site，确认 owner-private。使用 Sites source helper 在空目录恢复该 Site 保存的源码；源码含 review/、config/、requirements.txt 和本文件。保持已有 project_id，不创建新 Site。
+在恢复的源码目录创建 work/data-venv 并安装 requirements.txt；不要安装或调用 mootdx/TCP，也不需要第三方 MCP。上游数据代码已经按固定版本保存在 review/vendor/。
+日期使用 Asia/Shanghai 当日。运行 work/data-venv/bin/python -m review.runner run --date YYYY-MM-DD --output work/report.json。
+运行退出非零时停止，不发布已有旧文件。skipped=true 代表已依据日历确认休市，不写报告。日历接口失败时尝试完整年度通达信官方休市表；两个源均无有效日历时失败，不能仅按星期判断。
+a-stock-data 内部使用腾讯、通达信官网盘后包、深交所及中金所 HTTP 接口，继承环境代理和 TLS 校验。不得绕过代理或修改策略。官方盘后包可能尚未发布，此时缺失模块明确标记，其他有效模块保留；全部无数据时不发布。
+备用 MCP 只访问 https://mcp.tdx.com.cn:3001/mcp，仅当 Cloud Secrets TDX_MCP_TOKEN、官方 auth 配置、经过真实验证的工具映射全部就绪时使用。不要猜测认证格式或工具名，未配置的备选模块显示不可用。
+从 get_site 获取当前本站 URL 与 siwc_bypass_bearer_token。以 tty 启动 python -m review.publish，等待隐藏 stdin 提示，再发送 url、token、report_path JSON。凭据只在会话内传输，不写文件、命令参数、网页或提示词。
+发布程序必须成功并完整读回一致。失败时保留历史报告。日常只写 R2，不改站点代码、不重新部署。
+报告中标记 A股样本非全市场、ETF观察池范围、行业/NAV/ETF期权/到期日/IV等实际缺失；缺少到期日不计算 PCR。
