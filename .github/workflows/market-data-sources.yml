@@ -1,0 +1,47 @@
+name: Verify market data sources
+
+on:
+  push:
+    branches: [fix/market-period-data]
+  workflow_dispatch:
+    inputs:
+      date:
+        description: Trading date to verify
+        required: true
+        default: '2026-11-10'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: market-data-sources-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  verify-sources:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - name: Install declared data dependencies
+        run: python -m pip install -r requirements.txt
+      - name: Verify dated public source responses
+        env:
+          PROBE_DATE: ${{ inputs.date || '2026-11-10' }}
+        run: python scripts/probe-market-sources.py --date "$PROBE_DATE" --output "$RUNNER_TEMP/market-sources"
+      - name: Retain source evidence and report outside Git history
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: market-sources-${{ github.sha }}
+          path: ${{ runner.temp }}/market-sources/
+          if-no-files-found: error
+          retention-days: 7
