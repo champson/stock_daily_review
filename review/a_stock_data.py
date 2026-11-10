@@ -235,8 +235,28 @@ class AStockData:
                 close = history[-1]["close"]
                 if quote and abs(quote["close"] - close) > 0.011:
                     raise ValueError("指数历史与盘后包收盘价不一致")
+                previous_close = quote["prev_close"] if quote else None
+                if not quote:
+                    try:
+                        if not self.calendar(day)["open"]:
+                            raise ValueError("报告日未获官方日历确认为开市日")
+                        previous = None
+                        for offset in range(1, 21):
+                            candidate = (date.fromisoformat(day) - timedelta(days=offset)).isoformat()
+                            calendar = self.calendar(candidate)
+                            if calendar["open"]:
+                                previous = calendar
+                                break
+                        if previous is None:
+                            raise ValueError("未取得官方前交易日")
+                        previous_close = next((r["close"] for r in history if r["date"] == previous["date"]), None)
+                        sources.append({"dataset": "indices_previous_calendar", **previous})
+                        if previous_close is None:
+                            raise ValueError("历史缺少官方前交易日 " + previous["date"])
+                    except (RuntimeError, ValueError, KeyError, TypeError, OSError) as exc:
+                        issues.append(f"{symbol} 当日收益留空：{exc}")
                 row = {"symbol": symbol, "name": item["name"], "date": day, "close": close,
-                       "previous_close": quote["prev_close"] if quote else history[-2]["close"] if len(history) > 1 else None,
+                       "previous_close": previous_close,
                        "amount": quote["amount"] if quote else None, "provider": provider,
                        "price_basis": price_basis, "volume_unit": volume_unit,
                        "history": [{"date": r["date"], "close": r["close"],

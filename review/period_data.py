@@ -4,6 +4,7 @@ The compact result deliberately is not a daily-history series. It supplies only
 the official calendar anchors needed by the matrix and cannot be used for MA.
 """
 import hashlib
+import http.client
 import math
 import re
 import urllib.request
@@ -129,7 +130,7 @@ def official_events(adapter):
             provenance["last_modified"] = modified
         adapter.cache[key] = (dict(grouped), provenance)
         return adapter.cache[key]
-    except (RuntimeError, ValueError, KeyError, TypeError, OSError) as exc:
+    except (RuntimeError, ValueError, KeyError, TypeError, OSError, http.client.HTTPException) as exc:
         adapter.cache[error_key] = "官方除权事件包不可用：" + _error(exc)
         raise ValueError(adapter.cache[error_key]) from None
 

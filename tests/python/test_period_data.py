@@ -1,4 +1,5 @@
 """Cross-period prices use bulk exact-date snapshots and verified event data."""
+import http.client
 import json
 import unittest
 from unittest.mock import MagicMock, patch
@@ -192,6 +193,32 @@ class PeriodDataTests(unittest.TestCase):
                             self.assertEqual(groups["sh600001"], [event()])
                             self.assertIn("archive_sha256", source)
                     fetch.assert_called_once(); decode.assert_called_once()
+
+    def test_incomplete_http_event_download_is_cached_and_keeps_bond_periods(self):
+        adapter = AStockData({})
+        stocks, bonds = [current("sh600001")], [current("sh113001", 120)]
+        basis = {"date": DAY, "anchors": ANCHORS, "provenance": []}
+        packages = {stamp: [raw(stamp, "sh600001"), raw(stamp, "sh113001")]
+                    for stamp in ANCHORS.values()}
+        response = MagicMock()
+        response.read.side_effect = http.client.IncompleteRead(b"truncated zip", 100)
+        opener = MagicMock()
+        opener.__enter__.return_value = response
+        with patch.object(adapter, "package", side_effect=lambda stamp: packages[stamp]), \
+                patch("review.period_data.urllib.request.urlopen", return_value=opener) as fetch, \
+                patch("review.tdx_adjustments.decode_gbbq_zip") as decode:
+            for _ in range(2):
+                result = collect_period_prices(adapter, DAY, basis, stocks, bonds)
+                self.assertEqual(result["stocks"]["status"], "unavailable")
+                self.assertEqual(result["stocks"]["rows"], [])
+                self.assertEqual(result["convertibles"]["status"], "available")
+                self.assertEqual(result["convertibles"]["period_coverage"], {"year": 1, "month": 1, "week": 1})
+                self.assertTrue(any("IncompleteRead" in note for note in result["stocks"]["observations"]))
+            fetch.assert_called_once()
+            response.read.assert_called_once()
+            decode.assert_not_called()
+        self.assertIn("IncompleteRead", adapter.cache[("period_gbbq_error",)])
+        self.assertNotIn(("period_gbbq",), adapter.cache)
 
     def test_main_stock_cache_and_optional_failure_preserve_other_data(self):
         adapter = AStockData({})

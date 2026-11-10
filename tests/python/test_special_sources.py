@@ -41,11 +41,13 @@ class SpecialSourceTests(unittest.TestCase):
         for row in data["rows"]:
             row["source"] = "eastmoney"
         with patch.object(adapter, "package", return_value=[]), \
+                patch.object(adapter, "calendar", side_effect=lambda stamp: {"date": stamp, "open": stamp in (DAY, "2026-11-09")}), \
                 patch("review.a_stock_data.api.tencent_kline", side_effect=ValueError("unsupported")), \
                 patch("review.a_stock_data.fetch_index_history", return_value=data):
             result = adapter.indices(DAY)
         self.assertEqual(result["rows"][0]["volume_unit"], "source")
         self.assertEqual(result["rows"][0]["provider"], "eastmoney")
+        self.assertEqual(result["rows"][0]["previous_close"], 110)
         quote = {"market": "sh", "code": "932000", "date": DAY, "close": 999}
         with patch.object(adapter, "package", return_value=[quote]), \
                 patch("review.a_stock_data.api.tencent_kline", side_effect=ValueError("unsupported")), \
@@ -53,3 +55,17 @@ class SpecialSourceTests(unittest.TestCase):
             conflict = adapter.indices(DAY)
         self.assertEqual(conflict["rows"], [])
         self.assertIn("不一致", conflict["observations"][0])
+
+    def test_missing_official_previous_day_is_not_a_daily_return(self):
+        adapter = AStockData({"indices": [{"symbol": "sh932000", "name": "中证2000"}]})
+        data = history()
+        data["rows"] = [data["rows"][0], data["rows"][-1]]
+        with patch.object(adapter, "package", return_value=[]), \
+                patch.object(adapter, "calendar", side_effect=lambda stamp: {"date": stamp, "open": stamp in (DAY, "2026-11-09")}), \
+                patch("review.a_stock_data.api.tencent_kline", side_effect=ValueError("unsupported")), \
+                patch("review.a_stock_data.fetch_index_history", return_value=data):
+            result = adapter.indices(DAY)
+        self.assertIsNone(result["rows"][0]["previous_close"])
+        self.assertEqual(len(result["rows"][0]["history"]), 2)
+        self.assertTrue(result["partial"])
+        self.assertTrue(any("前交易日 2026-11-09" in issue for issue in result["observations"]))
