@@ -1,0 +1,133 @@
+{
+  "version": 1,
+  "calendar_month": "2025-12",
+  "source": "深交所（官方月历归档）",
+  "source_url": "https://www.szse.cn/api/report/exchange/onepersistenthour/monthList?month=2025-12",
+  "fetched_at": "2026-11-10T08:12:08.836606+00:00",
+  "rows": [
+    {
+      "date": "2025-12-01",
+      "is_open": true
+    },
+    {
+      "date": "2025-12-02",
+      "is_open": true
+    },
+    {
+      "date": "2025-12-03",
+      "is_open": true
+    },
+    {
+      "date": "2025-12-04",
+      "is_open": true
+    },
+    {
+      "date": "2025-12-05",
+      "is_open": true
+    },
+    {
+      "date": "2025-12-06",
+      "is_open": false
+    },
+    {
+      "date": "2025-12-07",
+      "is_open": false
+    },
+    {
+      "date": "2025-12-08",
+      "is_open": true
+    },
+    {
+      "date": "2025-12-09",
+      "is_open": true
+    },
+    {
+      "date": "2025-12-10",
+      "is_open": true
+    },
+    {
+      "date": "2025-12-11",
+      "is_open": true
+    },
+    {
+      "date": "2025-12-12",
+      "is_open": true
+    },
+    {
+      "date": "2025-12-13",
+      "is_open": false
+    },
+    {
+      "date": "2025-12-14",
+      "is_open": false
+    },
+    {
+      "date": "2025-12-15",
+      "is_open": true
+    },
+    {
+      "date": "2025-12-16",
+      "is_open": true
+    },
+    {
+      "date": "2025-12-17",
+      "is_open": true
+    },
+    {
+      "date": "2025-12-18",
+      "is_open": true
+    },
+    {
+      "date": "2025-12-19",
+      "is_open": true
+    },
+    {
+      "date": "2025-12-20",
+      "is_open": false
+    },
+    {
+      "date": "2025-12-21",
+      "is_open": false
+    },
+    {
+      "date": "2025-12-22",
+      "is_open": true
+    },
+    {
+      "date": "2025-12-23",
+      "is_open": true
+    },
+    {
+      "date": "2025-12-24",
+      "is_open": true
+    },
+    {
+      "date": "2025-12-25",
+      "is_open": true
+    },
+    {
+      "date": "2025-12-26",
+      "is_open": true
+    },
+    {
+      "date": "2025-12-27",
+      "is_open": false
+    },
+    {
+      "date": "2025-12-28",
+      "is_open": false
+    },
+    {
+      "date": "2025-12-29",
+      "is_open": true
+    },
+    {
+      "date": "2025-12-30",
+      "is_open": true
+    },
+    {
+      "date": "2025-12-31",
+      "is_open": true
+    }
+  ]
+}

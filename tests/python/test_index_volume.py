@@ -23,6 +23,8 @@ class IndexVolumeTests(unittest.TestCase):
     def collect(self, history):
         adapter = self.adapter()
         with patch.object(adapter, "package", return_value=[]), \
+                patch.object(adapter, "calendar", side_effect=lambda stamp: {
+                    "date": stamp, "open": stamp in (DAY, "2026-11-06"), "source": "fixture-calendar"}), \
                 patch("review.a_stock_data.api.tencent_kline", return_value=pd.DataFrame(history)):
             return adapter.indices(DAY)
 
@@ -36,7 +38,8 @@ class IndexVolumeTests(unittest.TestCase):
             {"date": DAY, "close": 110, "volume": 123.5},
         ])
         self.assertEqual(quote["volume_unit"], "手")
-        self.assertEqual(data["provenance"][0]["provider"], "tencent")
+        self.assertEqual(next(p["provider"] for p in data["provenance"] if p["dataset"] == "indices"), "tencent")
+        self.assertEqual(quote["previous_close"], 100)
         analyzed = analyze("indices", data["rows"])
         self.assertEqual(analyzed["rows"][0]["history"], quote["history"])
         self.assertEqual(analyzed["rows"][0]["trend"]["days"], 2)

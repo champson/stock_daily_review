@@ -123,6 +123,10 @@
         "symbol": "sh000995",
         "name": "中证全指公用事业指数"
       }
+    ],
+    "calendar_archive_directory": "config/calendars",
+    "special_indices": [
+      "jisilu_convertible_equal_weight"
     ]
   }
 }
