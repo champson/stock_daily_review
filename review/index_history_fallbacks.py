@@ -12,6 +12,7 @@ provider's market ID must not be inferred from a stock-code prefix.
 import http.client
 import json
 import math
+import time
 import urllib.error
 import urllib.request
 from datetime import date, datetime, timezone
@@ -20,6 +21,8 @@ from urllib.parse import urlencode
 
 MAX_RESPONSE_BYTES = 10 * 1024 * 1024
 REQUEST_TIMEOUT = 30
+MAX_REQUEST_ATTEMPTS = 3
+TRANSIENT_HTTP_STATUSES = frozenset({429, 500, 502, 503, 504})
 EASTMONEY_URL = "https://push2his.eastmoney.com/api/qt/stock/kline/get"
 JISILU_URL = "https://www.jisilu.cn/webapi/cb/index_history/"
 INDEX_MARKETS = {
@@ -83,22 +86,33 @@ def _read_json(url, params=None):
         "Accept": "application/json",
         "Referer": url,
     })
+    # build_opener retains the inherited HTTP(S) proxy and default TLS trust.
+    opener = urllib.request.build_opener(_NoRedirect())
+    for attempt in range(MAX_REQUEST_ATTEMPTS):
+        try:
+            with opener.open(request, timeout=REQUEST_TIMEOUT) as response:
+                status = getattr(response, "status", 200)
+                if status != 200:
+                    raise urllib.error.HTTPError(target, status, "index history", {}, None)
+                body = response.read(MAX_RESPONSE_BYTES + 1)
+            break
+        except urllib.error.HTTPError as exc:
+            retry = exc.code in TRANSIENT_HTTP_STATUSES and attempt + 1 < MAX_REQUEST_ATTEMPTS
+            code = exc.code
+            exc.close()
+            if not retry:
+                raise RuntimeError(f"指数历史 HTTP {code}（请求{attempt + 1}次）") from exc
+        except (urllib.error.URLError, OSError, http.client.HTTPException) as exc:
+            if attempt + 1 >= MAX_REQUEST_ATTEMPTS:
+                raise RuntimeError(f"指数历史请求失败（请求{attempt + 1}次）："
+                                   + type(exc).__name__) from exc
+        time.sleep(attempt + 1)
+    if len(body) > MAX_RESPONSE_BYTES:
+        raise RuntimeError("指数历史响应超过10MiB限制")
     try:
-        # build_opener retains the inherited HTTP(S) proxy and default TLS trust.
-        opener = urllib.request.build_opener(_NoRedirect())
-        with opener.open(request, timeout=REQUEST_TIMEOUT) as response:
-            status = getattr(response, "status", 200)
-            if status != 200:
-                raise RuntimeError(f"指数历史 HTTP {status}")
-            body = response.read(MAX_RESPONSE_BYTES + 1)
-        if len(body) > MAX_RESPONSE_BYTES:
-            raise RuntimeError("指数历史响应超过10MiB限制")
         payload = json.loads(body.decode("utf-8-sig"))
-    except urllib.error.HTTPError as exc:
-        raise RuntimeError(f"指数历史 HTTP {exc.code}") from exc
-    except (urllib.error.URLError, OSError, http.client.HTTPException,
-            UnicodeDecodeError, json.JSONDecodeError, RecursionError) as exc:
-        raise RuntimeError("指数历史请求或JSON解析失败：" + type(exc).__name__) from exc
+    except (UnicodeDecodeError, json.JSONDecodeError, RecursionError) as exc:
+        raise RuntimeError("指数历史JSON解析失败：" + type(exc).__name__) from exc
     if not isinstance(payload, dict):
         raise RuntimeError("指数历史未返回JSON对象")
     return payload, target, datetime.now(timezone.utc).isoformat()

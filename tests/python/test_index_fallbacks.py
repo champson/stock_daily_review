@@ -4,7 +4,7 @@ import http.client
 import json
 import unittest
 import urllib.error
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, call, patch
 from urllib.parse import parse_qs, urlsplit
 
 from review import index_history_fallbacks as fallback
@@ -151,10 +151,78 @@ class IndexFallbackTests(unittest.TestCase):
                 raise http.client.IncompleteRead(b"partial", 100)
 
         opener = Mock()
-        opener.open.return_value = BrokenResponse(b"")
+        opener.open.side_effect = lambda *args, **kwargs: BrokenResponse(b"")
         with patch("review.index_history_fallbacks.urllib.request.build_opener", return_value=opener), \
+                patch("review.index_history_fallbacks.time.sleep") as sleep, \
                 self.assertRaisesRegex(RuntimeError, "IncompleteRead"):
             fallback.fetch_jsl_equal_weight(START, END)
+        self.assertEqual(opener.open.call_count, 3)
+        self.assertEqual(sleep.call_args_list, [call(1), call(2)])
+
+    def test_transient_transport_and_http_failures_recover_with_bounded_backoff(self):
+        good = json.dumps(em_payload()).encode()
+        errors = [urllib.error.URLError("temporary connection interruption"),
+                  ConnectionResetError("connection reset"), http.client.RemoteDisconnected()]
+        errors.extend(urllib.error.HTTPError(fallback.EASTMONEY_URL, status, "temporary", {}, None)
+                      for status in (429, 500, 502, 503, 504))
+        for error in errors:
+            with self.subTest(error=type(error).__name__, code=getattr(error, "code", None)):
+                opener = Mock()
+                opener.open.side_effect = [error, FakeResponse(good)]
+                with patch("review.index_history_fallbacks.urllib.request.build_opener", return_value=opener), \
+                        patch("review.index_history_fallbacks.time.sleep") as sleep:
+                    result = fallback.fetch_index_history("sh932000", START, END)
+                self.assertEqual(result["rows"][-1]["close"], 1234.5)
+                self.assertEqual(opener.open.call_count, 2)
+                sleep.assert_called_once_with(1)
+
+    def test_interrupted_response_body_recovers_without_using_partial_json(self):
+        class InterruptedResponse(FakeResponse):
+            def read(self, size=-1):
+                raise http.client.IncompleteRead(b'{"data":', 100)
+
+        opener = Mock()
+        opener.open.side_effect = [InterruptedResponse(b""), FakeResponse(json.dumps(em_payload()).encode())]
+        with patch("review.index_history_fallbacks.urllib.request.build_opener", return_value=opener), \
+                patch("review.index_history_fallbacks.time.sleep") as sleep:
+            result = fallback.fetch_index_history("sh932000", START, END)
+        self.assertEqual(result["rows"][-1]["date"], END)
+        self.assertEqual(opener.open.call_count, 2)
+        sleep.assert_called_once_with(1)
+
+    def test_nontransient_http_json_and_schema_errors_are_not_retried(self):
+        for status in (302, 400, 401, 403, 404):
+            opener = Mock()
+            opener.open.side_effect = urllib.error.HTTPError(fallback.EASTMONEY_URL, status, "reject", {}, None)
+            with self.subTest(status=status), \
+                    patch("review.index_history_fallbacks.urllib.request.build_opener", return_value=opener), \
+                    patch("review.index_history_fallbacks.time.sleep") as sleep, \
+                    self.assertRaisesRegex(RuntimeError, f"HTTP {status}"):
+                fallback.fetch_index_history("sh932000", START, END)
+            self.assertEqual(opener.open.call_count, 1)
+            sleep.assert_not_called()
+        for body in (b"<html>login</html>", b"[]", b"\xff", json.dumps(em_payload(code="000001")).encode()):
+            opener = Mock()
+            opener.open.return_value = FakeResponse(body)
+            with self.subTest(body=body[:20]), \
+                    patch("review.index_history_fallbacks.urllib.request.build_opener", return_value=opener), \
+                    patch("review.index_history_fallbacks.time.sleep") as sleep, self.assertRaises(RuntimeError):
+                fallback.fetch_index_history("sh932000", START, END)
+            self.assertEqual(opener.open.call_count, 1)
+            sleep.assert_not_called()
+
+    def test_retry_exhaustion_is_explicit_and_stops_after_three_attempts(self):
+        for error in (urllib.error.URLError("temporary"),
+                      urllib.error.HTTPError(fallback.EASTMONEY_URL, 503, "temporary", {}, None)):
+            opener = Mock()
+            opener.open.side_effect = error
+            with self.subTest(error=type(error).__name__), \
+                    patch("review.index_history_fallbacks.urllib.request.build_opener", return_value=opener), \
+                    patch("review.index_history_fallbacks.time.sleep") as sleep, \
+                    self.assertRaisesRegex(RuntimeError, "请求3次"):
+                fallback.fetch_index_history("sh932000", START, END)
+            self.assertEqual(opener.open.call_count, 3)
+            self.assertEqual(sleep.call_args_list, [call(1), call(2)])
 
     def test_invalid_dates_or_unsupported_symbol_do_not_request_network(self):
         with patch("review.index_history_fallbacks.urllib.request.build_opener") as opener:
