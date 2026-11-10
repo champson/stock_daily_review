@@ -54,7 +54,7 @@ def main():
 
     check('calendar', calendar)
     anchors = evidence['checks'].get('calendar', {}).get('anchors', {})
-    days = sorted(set([day, '2026-11-09', *anchors.values()]))
+    days = sorted(set([day, '2026-11-09', *(stamp for stamp in anchors.values() if stamp)]))
     for stamp in days:
         def package(stamp=stamp):
             rows = adapter.package(stamp)
@@ -79,7 +79,7 @@ def main():
     check('gbbq', gbbq)
     for symbol in ('sh600519', 'sh600036', 'sz000001', 'sh600941'):
         def qfq(symbol=symbol):
-            rows = records(astock.tencent_kline(symbol, adjust='qfq', start=day[:4] + '-01-01', end=day, count=320))
+            rows = records(astock.tencent_kline(symbol, adjust='qfq', start=str(int(day[:4]) - 1) + '-12-01', end=day, count=320))
             save('qfq-' + symbol + '.json', rows)
             return {'symbol': symbol, 'rows': len(rows), 'last': rows[-1]['date'] if rows else None}
         check('qfq-' + symbol, qfq)
@@ -111,6 +111,11 @@ def main():
         payload = bounded_json('https://www.jisilu.cn/webapi/cb/index_history/')
         save('jsl-equal-weight.json', payload)
         rows = payload.get('data')
+        if isinstance(rows, dict) and isinstance(rows.get('price_dt'), list):
+            dates = rows['price_dt']
+            if not dates or any(not isinstance(values, list) or len(values) != len(dates) for values in rows.values()):
+                raise ValueError('Invalid JSL column lengths')
+            return {'rows': len(dates), 'columns': sorted(rows), 'last': max(dates)}
         if not isinstance(rows, list) or not rows:
             raise ValueError('No dated JSL index data')
         return {'rows': len(rows), 'columns': sorted(rows[0])}
@@ -122,14 +127,29 @@ def main():
             result = build_report(config, day, primary=adapter)
             save('report.json', result)
             periods = result.get('market_data', {}).get('period_prices', {})
+            for kind in ('stocks', 'convertibles'):
+                if any(periods.get(kind, {}).get('period_coverage', {}).get(period, 0) == 0
+                       for period in ('year', 'month', 'week')):
+                    raise ValueError('Generated period coverage is empty')
+            indices = {r['symbol'] for r in result.get('sections', {}).get('indices', {}).get('rows', [])
+                       if r.get('history')}
+            if not {'sh932000', 'bj899050'} <= indices:
+                raise ValueError('Index fallback history missing')
+            if not result.get('market_data', {}).get('special_indices', {}).get('rows'):
+                raise ValueError('Named convertible index missing')
             return {'status': result.get('status'), 'sections': {
                 name: section.get('sample_size', 0) for name, section in result.get('sections', {}).items()},
                 'period_stock_rows': len(periods.get('stocks', {}).get('rows', [])),
-                'period_bond_rows': len(periods.get('convertibles', {}).get('rows', []))}
+                'period_bond_rows': len(periods.get('convertibles', {}).get('rows', [])),
+                'coverage': {kind: periods[kind]['period_coverage'] for kind in ('stocks', 'convertibles')},
+                'report_chars': len(json.dumps(result, ensure_ascii=False))}
         check('generated-report', report)
     save('evidence.json', evidence)
     # Unavailable optional feeds remain explicit evidence; there are no fake values.
-    if 'calendar' not in evidence['checks'] or 'gbbq' not in evidence['checks']:
+    required = {'calendar', 'gbbq'}
+    if importlib.util.find_spec('review.period_data') is not None:
+        required.add('generated-report')
+    if not required <= evidence['checks'].keys():
         raise SystemExit(1)
 
 

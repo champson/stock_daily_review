@@ -9,6 +9,53 @@ function finiteNumbers(value: any, depth=0): boolean {
   if(value&&typeof value==='object')return Object.values(value).every(v=>finiteNumbers(v,depth+1));
   return true;
 }
+function positive(value: any): value is number {
+  return typeof value==='number' && Number.isFinite(value) && value>0;
+}
+function validatePeriodPrices(value: any, report: any): void {
+  if(!value || value.version!==1 || value.date!==report.date || value.method!=='tdx-affine-qfq' || !value.anchors || typeof value.anchors!=='object' || Array.isArray(value.anchors) || !Array.isArray(value.observations) || !Array.isArray(value.provenance))throw new Error('区间端点版本、日期或复权方法无效');
+  const calendar=report.market_data?.calendar_basis;
+  for(const period of ['year','month','week'] as const) {
+    const anchor=value.anchors[period],expected=calendar?.date===report.date?calendar.anchors[period]:null;
+    if(anchor!==expected || anchor!==null && !validDate(anchor))throw new Error('区间端点与交易日历基准不一致');
+  }
+  for(const kind of ['stocks','convertibles'] as const) {
+    const pool=value[kind];
+    if(!pool || !['available','partial','unavailable'].includes(pool.status) || !Array.isArray(pool.rows) || pool.rows.length>20000 || pool.sample_size!==pool.rows.length || !Array.isArray(pool.observations))throw new Error('区间端点数据集格式无效');
+    const quotes=kind==='stocks'?report.sections.stocks.rows:report.market_data?.convertibles?.rows||[];
+    const current=new Map<string,any>(Array.isArray(quotes)?quotes.filter(row=>row&&typeof row.symbol==='string').map(row=>[row.symbol,row]):[]);
+    const seen=new Set<string>();
+    for(const row of pool.rows) {
+      const quote=row&&current.get(row.symbol);
+      if(!row || typeof row.symbol!=='string' || !row.symbol || seen.has(row.symbol) || !quote || !positive(row.close) || !positive(quote.close) || Math.abs(row.close-quote.close)>Math.max(1,Math.abs(quote.close))*1e-10)throw new Error('区间端点证券重复、未匹配或末价不一致');
+      seen.add(row.symbol);
+      for(const period of ['year','month','week'] as const) {
+        const point=row[period];
+        if(point===null)continue;
+        if(!point || !validDate(point.date) || point.date!==value.anchors[period] || !positive(point.raw_close) || kind==='stocks'&&!positive(point.adjusted_close))throw new Error('区间端点基准日或价格无效');
+      }
+    }
+  }
+}
+function validateSpecialIndices(value: any, report: any): void {
+  const allowed=new Set(['special_microcap','special_ths_underlying','special_convertible_equal_weight']);
+  if(!value || value.date!==report.date || !['available','partial','unavailable'].includes(value.status) || !Array.isArray(value.rows) || value.rows.length>allowed.size || value.sample_size!==value.rows.length || !Array.isArray(value.observations) || !Array.isArray(value.provenance) || value.errors!==undefined&&!Array.isArray(value.errors))throw new Error('特色指数数据集格式或日期无效');
+  const keys=new Set<string>(),symbols=new Set<string>();
+  for(const row of value.rows) {
+    if(!row || !allowed.has(row.matrix_key) || keys.has(row.matrix_key) || typeof row.symbol!=='string' || !row.symbol || symbols.has(row.symbol) || typeof row.name!=='string' || !row.name || typeof row.provider!=='string' || !row.provider || row.date!==report.date || !positive(row.close) || row.previous_close!==undefined&&row.previous_close!==null&&!positive(row.previous_close) || !Array.isArray(row.history) || !row.history.length || row.history.length>20000)throw new Error('特色指数标识、日期或行情无效');
+    keys.add(row.matrix_key);symbols.add(row.symbol);
+    let previous='';
+    for(const point of row.history) {
+      if(!point || !validDate(point.date) || point.date<=previous || point.date>report.date || !positive(point.close))throw new Error('特色指数历史日期或价格无效');
+      previous=point.date;
+    }
+    const last=row.history[row.history.length-1];
+    if(last.date!==report.date || Math.abs(last.close-row.close)>Math.max(1,Math.abs(row.close))*1e-10)throw new Error('特色指数历史末日或末价不匹配');
+  }
+  for(const error of value.errors||[]) {
+    if(!error || !allowed.has(error.matrix_key) || typeof error.message!=='string' || !error.message || error.category!=='source_failed')throw new Error('特色指数失败说明格式无效');
+  }
+}
 export function validateReport(value: any): void {
   if(!finiteNumbers(value))throw new Error('数值或嵌套结构无效');
   if (!value || value.schema_version!==1 || !validDate(value.date) || !['a-stock-data','通达信 MCP','a-stock-data / 通达信 MCP'].includes(value.source) || !['complete','partial'].includes(value.status) || value.timezone!=='Asia/Shanghai') throw new Error('报告格式无效');
@@ -42,6 +89,8 @@ export function validateReport(value: any): void {
       }
       if(calendar.bias25_dates.length && calendar.bias25_dates[24]!==value.date)throw new Error('交易日历25日窗口末日无效');
     }
+    if(value.market_data.period_prices!==undefined)validatePeriodPrices(value.market_data.period_prices,value);
+    if(value.market_data.special_indices!==undefined)validateSpecialIndices(value.market_data.special_indices,value);
     const sectors=value.market_data.sector_indices;
     if(sectors!==undefined) {
       if(!sectors || sectors.date!==value.date || !['available','partial','unavailable'].includes(sectors.status) || !Array.isArray(sectors.rows) || !Number.isInteger(sectors.configured_count) || sectors.configured_count<0 || sectors.configured_count>1000 || sectors.rows.length>sectors.configured_count || sectors.sample_size!==sectors.rows.length || !Array.isArray(sectors.observations) || !Array.isArray(sectors.provenance))throw new Error('行业观察指数格式无效');

@@ -108,6 +108,7 @@ class SupplementaryDataTests(unittest.TestCase):
     def test_bse_snapshot_fallback_never_invents_history(self):
         adapter = AStockData({"indices": [{"symbol": "bj899050", "name": "北证50"}]})
         with patch.object(adapter, "package", return_value=[quote("899050", "bj")]), \
+                patch("review.a_stock_data.fetch_index_history", side_effect=RuntimeError("备用历史不可用")), \
                 patch("review.a_stock_data.api.tencent_kline", side_effect=ValueError("北交所历史不支持")):
             data = adapter.indices(DAY)
         self.assertEqual(data["rows"][0]["symbol"], "bj899050")

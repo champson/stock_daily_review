@@ -76,3 +76,67 @@ test('validates exact dated calendar anchors and a complete ordered25-day window
   const wrongEnd=structuredClone(r);wrongEnd.market_data.calendar_basis.bias25_dates=dates.map(d=>new Date(Date.parse(d)-86400000).toISOString().slice(0,10));assert.throws(()=>validateReport(wrongEnd),/窗口末日/);
   const unavailable=structuredClone(r);unavailable.market_data.calendar_basis.anchors={year:null,month:null,week:null};unavailable.market_data.calendar_basis.bias25_dates=[];validateReport(unavailable);
 });
+
+function periodFixture() {
+  const r=fixture(),anchors={year:'2025-12-31',month:'2026-09-30',week:'2026-10-09'};
+  r.sections.stocks={status:'partial',rows:[{symbol:'s',date:r.date,close:55,previous_close:50}],sample_size:1,metrics:{},observations:[]};
+  r.market_data={calendar_basis:{date:r.date,anchors,bias25_dates:[],observations:[],provenance:[]},
+    convertibles:{status:'partial',sample_size:1,mapping_filter_date:r.date,observations:[],rows:[{symbol:'b',date:r.date,close:110,previous_close:100,underlying_symbol:'s'}]},
+    period_prices:{version:1,date:r.date,method:'tdx-affine-qfq',anchors:{...anchors},observations:[],provenance:[],
+      stocks:{status:'partial',sample_size:1,observations:[],rows:[{symbol:'s',close:55,
+        year:{date:anchors.year,raw_close:100,adjusted_close:50},month:null,week:{date:anchors.week,raw_close:55,adjusted_close:55}}]},
+      convertibles:{status:'available',sample_size:1,observations:[],rows:[{symbol:'b',close:110,
+        year:{date:anchors.year,raw_close:100},month:{date:anchors.month,raw_close:105},week:{date:anchors.week,raw_close:110}}]}}};
+  return r;
+}
+test('validates compact adjusted stock and raw bond endpoints without adding daily histories',()=>{
+  const r=periodFixture();validateReport(r);assert.equal('history' in r.sections.stocks.rows[0],false);
+  const allMissing=periodFixture();allMissing.market_data.period_prices.stocks.status='unavailable';
+  for(const period of ['year','month','week'])allMissing.market_data.period_prices.stocks.rows[0][period]=null;
+  validateReport(allMissing);
+  const unavailable=periodFixture();delete unavailable.market_data.calendar_basis;
+  unavailable.market_data.period_prices.anchors={year:null,month:null,week:null};
+  for(const kind of ['stocks','convertibles'])unavailable.market_data.period_prices[kind]={status:'unavailable',rows:[],sample_size:0,observations:['source down']};
+  validateReport(unavailable);validateReport(fixture());
+});
+test('rejects stale, unknown-method, mismatched or duplicate compact endpoint data',()=>{
+  for(const mutate of [
+    p=>{p.date='2026-10-12'},p=>{p.version=2},p=>{p.method='raw-close'},
+    p=>{p.anchors.year='2025-12-30'},p=>{p.anchors.month=null},
+    p=>{p.stocks.rows[0].close=54},p=>{p.convertibles.rows[0].close=109},
+    p=>{p.stocks.rows[0].symbol='unmatched'},
+    p=>{p.stocks.rows.push({...p.stocks.rows[0]});p.stocks.sample_size=2},
+    p=>{p.convertibles.rows.push({...p.convertibles.rows[0]});p.convertibles.sample_size=2},
+    p=>{p.stocks.rows[0].year.date='2026-10-14'},
+    p=>{p.stocks.rows[0].year.adjusted_close=0},p=>{p.stocks.rows[0].year.adjusted_close=true},
+    p=>{p.convertibles.rows[0].year.raw_close=0},p=>{delete p.stocks.rows[0].month},
+    p=>{p.stocks.sample_size=0},p=>{p.stocks.status='unknown'},
+  ]) {
+    const r=periodFixture();mutate(r.market_data.period_prices);assert.throws(()=>validateReport(r),/区间端点/);
+  }
+});
+
+function specialFixture() {
+  const r=fixture();r.market_data={special_indices:{date:r.date,status:'available',sample_size:1,observations:[],provenance:[],errors:[],rows:[{
+    matrix_key:'special_convertible_equal_weight',symbol:'jsl_cb_equal_weight',name:'集思录转债等权',provider:'jisilu',
+    date:r.date,close:110,previous_close:100,history:[{date:'2025-12-31',close:90},{date:r.date,close:110}],
+  }]}};return r;
+}
+test('validates explicit special index series and dated source failures without requiring them in old reports',()=>{
+  validateReport(specialFixture());
+  const failed=fixture();failed.market_data={special_indices:{date:failed.date,status:'unavailable',sample_size:0,rows:[],observations:[],provenance:[],
+    errors:[{matrix_key:'special_convertible_equal_weight',message:'source unavailable',category:'source_failed'}]}};
+  validateReport(failed);validateReport(fixture());
+});
+test('rejects unknown, duplicate or stale special index identifiers and invalid history endpoints',()=>{
+  for(const mutate of [
+    s=>{s.date='2026-10-12'},s=>{s.rows[0].date='2026-10-12'},s=>{s.rows[0].matrix_key='unknown'},
+    s=>{s.rows.push({...s.rows[0]});s.sample_size=2},s=>{s.rows[0].provider=''},
+    s=>{s.rows[0].previous_close=-1},s=>{s.rows[0].history=[]},
+    s=>{s.rows[0].history.reverse()},s=>{s.rows[0].history[0].date='2026-02-30'},
+    s=>{s.rows[0].history.at(-1).date='2026-10-14'},s=>{s.rows[0].history.at(-1).close=111},
+    s=>{s.errors=[{matrix_key:'unknown',message:'bad',category:'source_failed'}]},
+  ]) {
+    const r=specialFixture();mutate(r.market_data.special_indices);assert.throws(()=>validateReport(r),/特色指数/);
+  }
+});
