@@ -73,7 +73,8 @@ def analyze(kind, rows, complete=False):
             observations.append(f"有效样本 {len(changes)} 个，上涨 {sum(c > 0 for c in changes)} 个，下跌 {sum(c < 0 for c in changes)} 个。" + ("" if complete else "该统计仅代表已获取样本。"))
     if kind == "stocks":
         metrics["sectors"] = sector_metrics(entries)
-        observations.append("板块涨跌为已获取成分股的等权平均，分类来自行情源；并非板块指数涨跌幅。")
+        if metrics["sectors"]:
+            observations.append("板块涨跌为已获取成分股的等权平均，分类来自行情源；并非板块指数涨跌幅。")
     if kind == "options":
         groups = defaultdict(list)
         for r in rows:

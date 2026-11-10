@@ -81,6 +81,48 @@
       "sh512880",
       "sh515000"
     ],
-    "convertible_mapping_revision": "f21534946c42be3ad048ac938eecb1bad84cb8ab"
+    "convertible_mapping_revision": "f21534946c42be3ad048ac938eecb1bad84cb8ab",
+    "sector_indices": [
+      {
+        "symbol": "sh000986",
+        "name": "中证全指能源指数"
+      },
+      {
+        "symbol": "sh000987",
+        "name": "中证全指原材料指数"
+      },
+      {
+        "symbol": "sh000988",
+        "name": "中证全指工业指数"
+      },
+      {
+        "symbol": "sh000989",
+        "name": "中证全指可选消费指数"
+      },
+      {
+        "symbol": "sh000990",
+        "name": "中证全指主要消费指数"
+      },
+      {
+        "symbol": "sh000991",
+        "name": "中证全指医药卫生指数"
+      },
+      {
+        "symbol": "sh000992",
+        "name": "中证全指金融地产指数"
+      },
+      {
+        "symbol": "sh000993",
+        "name": "中证全指信息技术指数"
+      },
+      {
+        "symbol": "sh000994",
+        "name": "中证全指通信服务指数"
+      },
+      {
+        "symbol": "sh000995",
+        "name": "中证全指公用事业指数"
+      }
+    ]
   }
 }

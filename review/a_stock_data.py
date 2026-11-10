@@ -154,7 +154,7 @@ class AStockData:
                 and r["volume"] > 0 and r["amount"] > 0]
         return {"rows": rows, "complete": False, "partial": True,
                 "observations": ["样本来自盘后包按 A 股号段筛选的有成交证券；未核对交易所上市名册，不标记为全市场。",
-                                 "尚未接入经验证的行业分类，板块强弱缺失。"],
+                                 "个股行业分类尚未接入；行业强弱另按中证全指行业观察指数展示，不是个股等权分组。"],
                 "provenance": self.provenance("stocks", package)}
 
     def indices(self, day):
@@ -209,7 +209,95 @@ class AStockData:
             basis = {"date": day, "anchors": {"year": None, "month": None, "week": None},
                      "bias25_dates": [], "provenance": [],
                      "observations": [f"区间统计交易日历未取得：{type(exc).__name__}：{exc}"]}
-        return {"convertibles": convertibles, "calendar_basis": basis}
+        try:
+            sectors = self.sector_indices(day)
+        except (RuntimeError, ValueError, KeyError, TypeError, OSError) as exc:
+            configured = self.settings.get("sector_indices", [])
+            sectors = {"status": "unavailable", "date": day, "label": "中证全指行业观察指数",
+                       "configured_count": len(configured) if isinstance(configured, list) else 0,
+                       "sample_size": 0, "previous_trading_date": None,
+                       "universe_complete": False, "rows": [], "provenance": [],
+                       "observations": [f"行业观察指数未取得：{type(exc).__name__}：{exc}"]}
+        return {"convertibles": convertibles, "calendar_basis": basis, "sector_indices": sectors}
+
+    def sector_indices(self, day):
+        """按报告日及官方前交易日收盘比较行业指数，不依赖个股分类。"""
+        parsed = date.fromisoformat(day)
+        configured = self.settings.get("sector_indices", [])
+        if not isinstance(configured, list):
+            raise ValueError("行业观察指数配置必须为数组")
+        symbols = set()
+        for item in configured:
+            if (not isinstance(item, dict) or not isinstance(item.get("symbol"), str)
+                    or not re.fullmatch(r"sh\d{6}", item["symbol"])
+                    or not isinstance(item.get("name"), str) or not item["name"]
+                    or item["symbol"] in symbols):
+                raise ValueError("行业观察指数配置代码、名称无效或重复")
+            symbols.add(item["symbol"])
+        result = {"status": "unavailable", "date": day, "label": "中证全指行业观察指数",
+                  "configured_count": len(configured), "sample_size": 0, "universe_complete": False,
+                  "previous_trading_date": None, "rows": [], "provenance": [],
+                  "observations": ["使用配置的中证全指行业指数观察池，金融地产为合并指数；不代表现行全部一级行业或概念板块。",
+                                   "涨跌幅为行业指数收盘相对官方前交易日收盘的价格涨幅，不是个股样本等权平均。"]}
+        if not configured:
+            result["observations"].append("行业指数观察池尚未配置。")
+            return result
+        try:
+            current_calendar = self.calendar(day)
+            if not current_calendar["open"]:
+                raise ValueError("行业指数报告日未获官方日历确认为开市日")
+            previous = None
+            for offset in range(1, 21):
+                candidate = (parsed - timedelta(days=offset)).isoformat()
+                calendar = self.calendar(candidate)
+                if calendar["open"]:
+                    previous = calendar
+                    break
+            if previous is None:
+                raise ValueError("前20个自然日内未找到官方日历确认的前交易日")
+        except (RuntimeError, ValueError, KeyError, TypeError, OSError) as exc:
+            result["observations"].append(f"行业指数交易日历未取得：{type(exc).__name__}：{exc}")
+            return result
+        previous_date = previous["date"]
+        result["previous_trading_date"] = previous_date
+        for calendar in (current_calendar, previous):
+            result["provenance"].append({"dataset": "sector_indices_calendar", "date": calendar["date"],
+                                         **{k: calendar[k] for k in ("source", "source_url", "fetched_at")}})
+        start = (parsed - timedelta(days=30)).isoformat()
+        for item in configured:
+            symbol = item["symbol"]
+            try:
+                history = records(api.tencent_kline(symbol, adjust="", start=start, end=day, count=40))
+                last_date = ""
+                for quote in history:
+                    stamp = quote.get("date")
+                    if (not isinstance(stamp, str) or date.fromisoformat(stamp).isoformat() != stamp
+                            or stamp < start or stamp > day or stamp <= last_date
+                            or not self._positive(quote.get("close"))):
+                        raise ValueError("行业指数历史日期越界、乱序、重复或收盘价无效")
+                    last_date = stamp
+                if not history or last_date != day:
+                    raise ValueError("行业指数历史没有覆盖报告日")
+                anchor = next((r for r in history if r["date"] == previous_date), None)
+                if anchor is None:
+                    raise ValueError(f"行业指数缺少官方前交易日 {previous_date} 的收盘价")
+                close, previous_close = history[-1]["close"], anchor["close"]
+                change = (close / previous_close - 1) * 100
+                if not math.isfinite(change):
+                    raise ValueError("行业指数涨跌幅超出有效数值范围")
+                result["provenance"].extend(self.provenance("sector_indices", history))
+                result["rows"].append({"symbol": symbol, "name": item["name"], "date": day,
+                                       "close": close, "previous_close": previous_close,
+                                       "previous_date": previous_date, "change_pct": change,
+                                       "provider": "tencent", "price_basis": "腾讯不复权行业指数日线"})
+            except (RuntimeError, ValueError, KeyError, TypeError, OSError) as exc:
+                result["observations"].append(f"{symbol}：{exc}")
+        result["rows"].sort(key=lambda row: row["change_pct"], reverse=True)
+        result["sample_size"] = len(result["rows"])
+        if result["sample_size"]:
+            result["status"] = "available" if result["sample_size"] == len(configured) else "partial"
+        result["observations"].append(f"报告日 {day}，前交易日 {previous_date}；取得 {result['sample_size']} / {len(configured)} 个观察指数。")
+        return result
 
     def convertibles(self, day):
         # 映射主表可能有当前价格，历史回填只能用报告日的报价包。
