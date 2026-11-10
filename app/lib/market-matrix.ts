@@ -181,7 +181,7 @@ export function buildMarketMatrix(report: any) {
     const average = aggregateRow(key+'_mean',label+'算术平均涨幅',values,mean,'percentage',true);
     const mid = aggregateRow(key+'_median',label+'涨幅中位数',values,median,'percentage',true);
     if (key === 'bond') {
-      average.notes.push('转债按证券等权，计算价格收益；不含票息，不作为可转债等权指数。');
+      average.notes.push('转债按证券等权，计算收盘报价的价格收益，未另计已支付票息现金流及再投资；不作为可转债等权指数。');
       mid.notes.push('仅包含报告日已上市且有有效行情的转债。');
     } else {
       average.notes.push('按关联正股证券代码去重，多只转债对应同一正股只计算一次。');
