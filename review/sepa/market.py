@@ -69,7 +69,7 @@ def _official_month(value, year, month):
     if base not in (CALENDAR_URL, HOLIDAY_URL):
         raise ValueError("月历来源不是已核验官方入口")
     query = parse_qs(parsed.query)
-    if "month" in query and query["month"] != [f"{year:04d}-{month:02d}"]:
+    if "month" in query and query["month"] not in ([f"{year:04d}-{month:02d}"], [f"{year:04d}-{month}"]):
         raise ValueError("官方月历来源日期与请求月份不一致")
     if not isinstance(value.get("source"), str) or not value["source"].strip():
         raise ValueError("官方月历缺少来源名称")

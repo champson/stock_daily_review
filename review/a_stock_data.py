@@ -104,13 +104,14 @@ class AStockData:
                         raise ValueError("官方月历归档超过大小限制")
                     archive = json.loads(payload.decode("utf-8"), object_pairs_hook=unique_keys)
                     fields = {"version", "calendar_month", "source", "source_url", "fetched_at", "rows"}
-                    expected_url = ("https://www.szse.cn/api/report/exchange/onepersistenthour/monthList"
-                                    f"?month={year:04d}-{month:02d}")
+                    official_url = "https://www.szse.cn/api/report/exchange/onepersistenthour/monthList"
+                    expected_urls = (f"{official_url}?month={year:04d}-{month:02d}",
+                                     f"{official_url}?month={year:04d}-{month}")
                     if (not isinstance(archive, dict) or set(archive) != fields
                             or type(archive.get("version")) is not int or archive["version"] != 1
                             or archive.get("calendar_month") != f"{year:04d}-{month:02d}"
                             or archive.get("source") != "深交所（官方月历归档）"
-                            or archive.get("source_url") != expected_url
+                            or archive.get("source_url") not in expected_urls
                             or not isinstance(archive.get("fetched_at"), str)):
                         raise ValueError("官方月历归档元数据未通过 schema 核验")
                     fetched = datetime.fromisoformat(archive["fetched_at"])

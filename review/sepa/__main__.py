@@ -53,7 +53,7 @@ def _output_directory(path, work):
     path.parent.mkdir(parents=True, exist_ok=True)
     with TemporaryDirectory(dir=path.parent, prefix=".sepa-") as staging:
         directory = Path(staging) / "result"
-        directory.mkdir()
+        directory.mkdir(mode=0o700)
         result = work(directory)
         directory.rename(path)
     return result
@@ -97,15 +97,14 @@ def _run(args):
 
 
 def _market_returns(args):
-    from review.a_stock_data import AStockData
+    from .calendar_mcp import default_calendar_adapter
     from .market import collect_market_returns
 
     day = validate_date(args.date)
-    settings = {"tdx_official_calendar_fallback": True,
-                "calendar_archive_directory": str(ROOT / "config" / "calendars")}
+    adapter = default_calendar_adapter(args.calendar_archive_dir)
 
     def generate(path):
-        result = collect_market_returns(AStockData(settings), day)
+        result = collect_market_returns(adapter, day)
         write_json(path / "market-returns.json", result)
         return result
 
@@ -113,6 +112,35 @@ def _market_returns(args):
     print(json.dumps({"date": day, "status": result["status"], "rows": len(result["rows"]),
                       "file": str(args.output_dir.resolve() / "market-returns.json")}, ensure_ascii=False))
     return 2 if result["status"] == "unavailable" else 0
+
+
+def _calendar_import(args):
+    from .calendar_mcp import import_manifest, import_snapshot
+
+    if args.manifest:
+        imported = import_manifest(args.manifest, args.archive_dir)
+    else:
+        imported = [import_snapshot(args.snapshot, args.archive_dir)]
+    print(json.dumps({"status": "available", "months": len(imported),
+                      "archive_dir": str(args.archive_dir.resolve())}, ensure_ascii=False))
+    return 0
+
+
+def _candidates(args):
+    from .daxi import load_daxi_candidates
+
+    day = validate_date(args.date)
+
+    def capture(path):
+        result = load_daxi_candidates(day)
+        write_json(path / "candidates.json", {key: result[key] for key in ("date", "source", "rows")})
+        write_json(path / "provider-response.json", result["raw"])
+        return result
+
+    result = _output_directory(args.output_dir, capture)
+    print(json.dumps({"status": "available", "date": day, "rows": len(result["rows"]),
+                      "output_dir": str(args.output_dir.resolve())}, ensure_ascii=False))
+    return 0
 
 
 def main(argv=None):
@@ -132,7 +160,20 @@ def main(argv=None):
     market = commands.add_parser("market-returns", help="从四个精确交易日价格采集市场收益快照")
     market.add_argument("--date", required=True, help="报告交易日 YYYY-MM-DD（北京时间）")
     market.add_argument("--output-dir", type=Path, required=True, help="新输出目录")
+    market.add_argument("--calendar-archive-dir", type=Path, help="MCP 月历归档目录，默认仓库中的官方归档")
     market.set_defaults(execute=_market_returns)
+
+    calendar = commands.add_parser("calendar-import", help="核验并归档通过 MCP 取得的深交所完整自然月月历")
+    snapshots = calendar.add_mutually_exclusive_group(required=True)
+    snapshots.add_argument("--snapshot", type=Path, help="A股 MCP trading_calendar 的 JSON 结果")
+    snapshots.add_argument("--manifest", type=Path, help="多个 MCP 月历结果的清单")
+    calendar.add_argument("--archive-dir", required=True, type=Path)
+    calendar.set_defaults(execute=_calendar_import)
+
+    candidates = commands.add_parser("candidates", help="验证大虾皮 VCP 鉴权并私有归档候选快照")
+    candidates.add_argument("--date", required=True, help="已收盘的报告交易日 YYYY-MM-DD（北京时间）")
+    candidates.add_argument("--output-dir", type=Path, required=True, help="新建的私有输出目录")
+    candidates.set_defaults(execute=_candidates)
     args = parser.parse_args(argv)
     try:
         return args.execute(args)
