@@ -9,7 +9,7 @@ const dates = ['2026-10-14','2026-10-15','2026-10-16','2026-10-19','2026-10-20',
   '2026-11-04','2026-11-05','2026-11-06','2026-11-09','2026-11-10',
   '2026-11-11','2026-11-12','2026-11-13','2026-11-17','2026-11-18'];
 const stock = (symbol, date, changes = {}) => ({symbol, category:'B', trend:{status:'pass'},
-  vcp:{state:'breakout', metrics:{setup_active:true}, breakout:{date,volume_confirmed:true}}, ...changes});
+  vcp:{state:'breakout', metrics:{setup_active:true}, breakout:{date,first_price_break_date:date,volume_confirmed:true}}, ...changes});
 const daily = rows => ({date:'2026-11-18',sepa:{date:'2026-11-18',rows},
   market_data:{calendar_basis:{date:'2026-11-18',bias25_dates:dates}}});
 
@@ -49,4 +49,16 @@ test('missing, mismatched or invalid calendars never guess freshness from candle
     assert.equal(r.rows.recent.state,'unknown');
   }
   assert.equal(buildSepaFocus(null).counts.focus,0);
+});
+
+test('late volume confirmation never refreshes an old first price breakout', () => {
+  const row=stock('late','2026-11-18');
+  row.vcp.breakout.first_price_break_date='2026-10-30';
+  const r=buildSepaFocus(daily([row]));
+  assert.equal(r.rows.late.state,'older');
+  assert.equal(r.rows.late.breakout_date,'2026-10-30');
+  assert.equal(r.rows.late.confirmation_date,'2026-11-18');
+  assert.equal(r.counts.focus,0);
+  delete row.vcp.breakout.first_price_break_date;
+  assert.equal(buildSepaFocus(daily([row])).rows.late.state,'unknown');
 });

@@ -14,6 +14,7 @@ from pathlib import Path
 import secrets
 import sys
 from zoneinfo import ZoneInfo
+from .vcp import ANALYSIS_VERSION
 
 ROOT = Path(__file__).resolve().parents[2]
 SHANGHAI = ZoneInfo("Asia/Shanghai")
@@ -76,6 +77,7 @@ def _existing(directory, day, allow_unranked=False):
     if record.get("candidate_count", 0) and not allow_unranked and record.get("market_rs_status") != "available":
         raise ValueError("已存在研究报告未通过市场 RS 核验，不能当作定时筛选完成；请检查归档或明确使用 --allow-unranked")
     return {"schema_version": 1, "date": day, "status": "already_completed",
+            "analysis_version": record.get("analysis_version"),
             "completed_status": record["status"], "report_status": record.get("report_status"),
             "candidate_count": record.get("candidate_count"), "output_dir": str(directory)}
 
@@ -142,7 +144,7 @@ def _candidates(payload, day):
 def run_daily(day=None, output_root=None, *, config_path=None, price_dir=None,
               market_returns=None, charts=True, calendar_archive_dir=None,
               calendar_factory=None, candidate_loader=None, market_collector=None,
-              report_builder=None, allow_unranked=False, now=None):
+              report_builder=None, allow_unranked=False, now=None, replay_of=None):
     """Run once and return a metadata-only result; dependencies may be injected.
 
     Partial individual-quote coverage is preserved when the independent market
@@ -170,7 +172,13 @@ def run_daily(day=None, output_root=None, *, config_path=None, price_dir=None,
             return {"date": day, "status": "busy", "output_dir": str(target)}
         if target.exists():
             try:
-                return _existing(target, day, allow_unranked=allow_unranked)
+                existing = _existing(target, day, allow_unranked=allow_unranked)
+                record = json.loads((target / "run.json").read_text())
+                if record.get("candidate_count", 0) and record.get("analysis_version") != ANALYSIS_VERSION:
+                    from .replay import replay_archive
+                    return replay_archive(target, root / ".revisions" / f"vcp-{ANALYSIS_VERSION}",
+                                          charts=charts, now=now, allow_unranked=allow_unranked)
+                return existing
             except (ValueError, OSError, TypeError) as exc:
                 return {"date": day, "status": "failed", "stage": "existing_output",
                         "error_type": type(exc).__name__, "error": str(exc), "output_dir": str(target)}
@@ -186,9 +194,12 @@ def run_daily(day=None, output_root=None, *, config_path=None, price_dir=None,
             from .report import read_json, require_config, build_report
             from .__main__ import _write_csv
             record = {"schema_version": 1, "date": day, "attempt_id": attempt_id,
+                      "analysis_version": ANALYSIS_VERSION,
                       "started_at": stamp.isoformat(), "timezone": "Asia/Shanghai",
                       "status": "failed", "stage": "calendar", "entrypoint": "review.sepa.daily",
                       "allow_unranked": bool(allow_unranked)}
+            if replay_of is not None:
+                record["replay_of"] = replay_of
             try:
                 adapter = (calendar_factory or _default_adapter)(archives)
                 month, proof = _calendar(adapter, day)

@@ -75,6 +75,35 @@ class VcpTests(unittest.TestCase):
         self.assertIsNone(result["breakout"])
         self.assertFalse(any(e["type"] == "breakout_confirmed" for e in result["events"]))
 
+    def test_low_confirmed_on_price_breakout_cannot_replace_the_frozen_setup(self):
+        source = setup()
+        original = analyze_vcp(source, CFG)
+        for price in (96, 94, 92, 91):
+            source = append(source, price)
+        source = append(source, 100, 100)
+        attempted = analyze_vcp(source, CFG)
+        self.assertEqual(attempted['state'], 'unconfirmed_breakout')
+        self.assertEqual(attempted['setup_id'], original['setup_id'])
+        self.assertEqual(attempted['pivot'], original['pivot'])
+        confirmed = analyze_vcp(append(source, 101, 3000), CFG)
+        self.assertEqual(confirmed['breakout']['date'], append(source, 101)[-1]['date'])
+        self.assertEqual(confirmed['breakout']['first_price_break_date'], source[-1]['date'])
+        self.assertEqual(confirmed['swings'], original['swings'])
+        self.assertEqual(attempted['events'], [e for e in confirmed['events'] if e['date'] <= source[-1]['date']])
+
+    def test_confirmed_departure_starts_a_new_base_without_reusing_old_contractions(self):
+        source = append(setup(), 100, 3000)
+        departed = source[-1]['date']
+        for row in setup():
+            source = append(source, row['close'] + 20, row['volume'])
+        result = analyze_vcp(source, {**CFG, 'max_signal_age_bars': 5})
+        later = [e for e in result['events'] if e['type'] == 'setup_detected' and e['date'] > departed]
+        self.assertTrue(later)
+        for event in later:
+            self.assertTrue(all(s['high_date'] >= departed for s in event['swings']))
+        self.assertEqual(result['breakout_history'][0]['date'], departed)
+        self.assertEqual(result['state'], 'ready')
+
     def test_missing_or_insufficient_volume_never_becomes_confirmed_breakout(self):
         for volume in (None, 100):
             with self.subTest(volume=volume):

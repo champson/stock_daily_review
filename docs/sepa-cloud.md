@@ -49,7 +49,7 @@ python3 -m review.sepa.daily --output-root work/sepa/archive \
 
 网站 `/sepa` 和首页使用同一份报告、同一日期选择器与历史列表；`/api/sepa` 提供只读的 SEPA 字段。导出的网页数据包含独立趋势/RS/VCP计算、最后120根腾讯前复权日线和均线，成交量统一为股。大虾皮原始响应、私有路径和完整事件重放日志不进入网页。网页数据仍通过原 `/api/reports` 的服务写入鉴权和不可变R2版本保存，日常无需部署代码。旧报告没有SEPA字段时明确显示尚未包含分析。
 
-网页近期筛选使用同份日报 `market_data.calendar_basis.bias25_dates` 中已核验的官方交易日，取含报告日在内的最后5日；不按自然日、星期规则或个股K线根数推算。重点关注仅包含仍有效的 A 类待突破，以及窗口内确认突破的 B 类；回踩不重置原突破日期。日历缺失时不猜测突破新旧，待突破及全部候选仍可查看。`/api/sepa` 的 `focus` 是派生展示字段，原始 `report` 不改写。每段收缩展示高点日到低点日、低点确认日，并在图表中标出可见区间。
+网页近期筛选使用同份日报 `market_data.calendar_basis.bias25_dates` 中已核验的官方交易日，取含报告日在内的最后5日；不按自然日、星期规则或个股K线根数推算。重点关注仅包含仍有效的 A 类待突破，以及首次收盘突破位于窗口内、且已放量确认的 B 类；后续放量确认和回踩不重置首次突破日期。日历缺失时不猜测突破新旧，待突破及全部候选仍可查看。`/api/sepa` 的 `focus` 是派生展示字段，原始 `report` 不改写。每段收缩展示高点日到低点日、低点确认日，并在图表中标出可见区间。
 
 运行环境需能读取 `DAXIAPI_TOKEN` 并访问 `daxiapi.com`、`www.tdx.com.cn`、`web.ifzq.gtimg.cn`；不把HTTP密钥复制到普通环境变量。私有 `work/sepa/archive` 保留完整研究证据；新建Cloud实例不代表这些私有文件已经迁移，网页上的派生分析历史则在原Site的R2中持久保存。
 
@@ -64,3 +64,5 @@ SEPA_ARCHIVE_ROOT=/absolute/private/archive python3 -m review.sepa.mcp_server
 ```
 
 客户端通过 stdio 调用 `vcp_candidates`、`sepa_screen`、`vcp_analyze`、`sepa_rank`、`sepa_report`。报告读取只在服务端配置的私有归档根内进行。实时工具与 CLI 共用同一来源和计算逻辑。`--transport streamable-http` 适用于本机调试，只绑定回环地址。Cloud App 若需远程连接，须另外部署受访问控制的 HTTPS 服务并接入该客户端。
+
+VCP 引擎版本2冻结尚在枢轴上方的突破形态，避免同日新确认低点替换旧枢轴而抹掉突破；确认突破后，新整理只能使用该次突破之后的收缩。网页保留首次价格突破、放量确认及历史形态标识。旧版成功日任务在再次运行时，先校验完整归档和行情哈希，再离线重放到 `work/sepa/archive/.revisions/vcp-2/YYYY-MM-DD`，原始归档不覆盖，行情日期、获取时间和候选来源保持原样。已生成的同版本重放继续幂等复用。
