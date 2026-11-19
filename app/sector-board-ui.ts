@@ -4,19 +4,19 @@ export const sectorBoardStyles=String.raw`
 .sector-board-table{width:100%;table-layout:fixed;font-size:14px;line-height:1.35}
 .sector-board-table th,.sector-board-table td{padding:6px 4px;min-width:0}
 .sector-board-table thead th{background:#244e66;color:white;font-weight:500;border-bottom:0}
-.sector-board-table th:first-child{width:176px;padding-left:12px;background:white;text-align:left;white-space:normal;overflow-wrap:anywhere}
+.sector-board-table th:first-child{width:280px;padding-left:12px;background:white;text-align:left;white-space:normal;overflow-wrap:anywhere}
 .sector-board-table thead th:first-child{background:#244e66}
 .sector-board-table tbody tr:nth-child(even) th:first-child{background:#f3f6f8}
 .sector-board-table tbody th{color:var(--ink);font-weight:500}
-.sector-name{display:flex;flex-wrap:wrap;gap:2px 6px;align-items:center}
+.sector-name{display:flex;gap:6px;align-items:baseline;white-space:nowrap}
 .sector-name a{color:var(--ink);text-decoration:none}
 .sector-name a:hover{text-decoration:underline}
-.sector-code{display:block;margin-top:1px;font-size:12px;color:#6c7d8b;font-weight:400}
-.sector-added{font-size:12px;color:#47716b;border:1px solid #cadfd9;border-radius:4px;padding:0 4px;font-weight:400}
+.sector-code{display:inline;flex-shrink:0;font-size:12px;color:#6c7d8b;font-weight:400}
+.sector-added{flex-shrink:0;font-size:12px;color:#47716b;border:1px solid #cadfd9;border-radius:4px;padding:0 4px;font-weight:400}
 .sector-board-table .sector-latest{border-left:2px solid #c1d8d1;border-right:2px solid #c1d8d1;font-weight:600}
 .sector-board-table thead .sector-latest{background:#236b61}
 .sector-cell-hot{color:#a83440}.sector-cell-cold{color:#086b5d}.sector-cell-missing{color:#82919e;background:#f5f7f9}.sector-board-notes{font-size:13px;color:#697b8b;padding:12px 20px 18px;line-height:1.6}.sector-board-notes details{margin-top:8px}.sector-board-notes ul{padding-left:20px;margin-bottom:0}.sector-board-empty{padding:30px 20px;font-size:14px;color:#71808d}.sector-group-meta{font-size:13px;color:var(--muted);margin-top:5px}.sector-board-count{font-size:14px;color:var(--muted);margin-left:auto;padding-bottom:9px}
-@container sector-table (max-width:760px){
+@container sector-table (max-width:820px){
 .sector-board-table,.sector-board-table tbody{display:block}
 .sector-board-table thead{display:none}
 .sector-board-table tbody tr{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));padding:8px 6px;gap:4px 0;border-bottom:1px solid var(--line)}
@@ -56,7 +56,7 @@ else if(!group.dates.length)section.append(node('div','本市场交易日历缺�
 else{
 var wrap=node('div',undefined,'sector-board-wrap'),table=node('table',undefined,'sector-board-table'),thead=node('thead'),tr=node('tr');wrap.setAttribute('role','region');wrap.setAttribute('aria-label',group.name+'乖离率表');table.setAttribute('aria-label',group.name+'最近10个交易日，最新在左');var nameHead=node('th','板块 / 指数');nameHead.scope='col';tr.append(nameHead);
 group.dates.forEach(function(d,i){var th=node('th',d.slice(5),i===0?'sector-latest':undefined);th.scope='col';th.title=d;th.setAttribute('aria-label',d+(i===0?'，最新交易日':''));tr.append(th)});thead.append(tr);table.append(thead);var tbody=node('tbody');
-rows.forEach(function(r){var row=node('tr');row.dataset.code=r.code;var th=node('th'),name=node('div',undefined,'sector-name'),link=node('a',r.name);th.scope='row';link.href=r.identity_url;link.target='_blank';link.rel='noopener noreferrer';link.title=r.official_name;name.append(link);if(r.supplemental)name.append(node('span','补充','sector-added'));th.append(name,node('span',r.issuer+' · '+r.code,'sector-code'));row.append(th);
+rows.forEach(function(r){var row=node('tr');row.dataset.code=r.code;var th=node('th'),name=node('div',undefined,'sector-name'),link=node('a',r.name);th.scope='row';link.href=r.identity_url;link.target='_blank';link.rel='noopener noreferrer';link.title=r.official_name;name.append(link,node('span',r.issuer+' · '+r.code,'sector-code'));if(r.supplemental)name.append(node('span','补充','sector-added'));th.append(name);row.append(th);
 var byDate=new Map((r.values||[]).map(function(p){return [p.date,p.value]}));group.dates.forEach(function(d,i){var v=byDate.get(d),valid=typeof v==='number'&&Number.isFinite(v),cell=node('td',valid?num(v,2):'—');cell.dataset.date=d.slice(5);if(i===0)cell.classList.add('sector-latest');if(valid){if(v>5)cell.classList.add('sector-cell-hot');if(v< -5)cell.classList.add('sector-cell-cold');if(Math.abs(v)>5)cell.style.backgroundColor=(v>0?'rgba(200,76,79,':'rgba(22,133,119,')+Math.min(.18,.035+Math.abs(v)/160)+')'}else cell.classList.add('sector-cell-missing');var hint=r.name+' · '+d+'：'+(valid?num(v,2)+'%':r.reason||'数据缺失');cell.title=hint;cell.setAttribute('aria-label',hint);row.append(cell)});tbody.append(row)});table.append(tbody);wrap.append(table);section.append(wrap)
 }
 var notes=node('div',undefined,'sector-board-notes');notes.append(node('div','共 '+group.configured_count+' 个观察指数；补充项单独标记。— 表示数据缺失，不是 0%。'));
