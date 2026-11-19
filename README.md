@@ -2,6 +2,8 @@
 
 行情优先使用 [a-stock-data](https://github.com/simonlin1212/a-stock-data)，通达信官方 MCP 作为备选。北京时间 18:00，周一至周五触发，使用完整交易日历跳过休市；不扩展到下单交易。
 
+每日任务统一运行多资产复盘与 SEPA + VCP 二筛。网站 `/sepa` 提供分类筛选、RS 覆盖、八项趋势检查、枢轴与前复权日线，和首页共用日期与历史归档。大虾皮盘后 VCP 数据官方说明为交易日约 17:00 更新，原任务保留 18:00（北京时间），每次核验实际数据日期。见[云端运行](docs/sepa-cloud.md)与[研究命令](docs/sepa-vcp.md)。
+
 ## 已验证的链路
 
 已使用真实接口生成 2026-10-13 日报：8 个指数、5,560 只 A 股样本、11 只 ETF、16 个股指期货合约、676 个指数期权合约；行情日期与报告日期一致，校验剔除 0 条。主源版本固定为 `29b07d2e37005b9fd568bca1262f6e572b5f9407`（V3.10.2），选用的发布代码与 Apache-2.0 许可保存在 `review/vendor/`。
@@ -58,7 +60,7 @@ probe 参数文件只含查询问题和分页等业务字段，不能包含密�
 
 `review.publish` 通过隐藏 stdin 接收 url、token、report_path。Token 只从本站 get_site 的 siwc_bypass_bearer_token 取得，用 OAI-Sites-Authorization 发送；拒绝所有重定向，凭据不落盘。写入后对整份报告读回比对。代码变化才重新部署，日常只更新 R2。
 
-后续任务从本站已部署版本恢复固定源码及 requirements.txt，按 CLOUD_RUN.txt 执行。现有18:00任务保留，不重复创建。任务启用状态以 native 工具为准。
+后续任务从本站已部署版本恢复固定源码及 requirements-sepa.txt，按 CLOUD_RUN.txt 执行 `python -m review.daily`。SEPA 补充结果写入同一日报的 `sepa` 字段，通过原有写入鉴权保存到 R2；`GET /api/sepa` 只读取该字段与历史日期。SEPA 源失败时保留其他有效复盘模块，旧日报缺少 SEPA 时明确提示。原始候选响应和完整研究归档留在私有工作目录。现有18:00任务保留，不重复创建；任务启用状态以 native 工具为准。
 
 
 ## GitHub 与 Sites 发布
