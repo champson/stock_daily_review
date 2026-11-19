@@ -1,3 +1,4 @@
+import {validateSectorBoard} from './sector-board-validation.mjs';
 import {validateSepa} from './sepa-validation.mjs';
 export const kinds = ['indices','stocks','etfs','futures','options'];
 export function validDate(value: unknown): value is string {
@@ -93,6 +94,7 @@ export function validateReport(value: any): void {
     }
     if(value.market_data.period_prices!==undefined)validatePeriodPrices(value.market_data.period_prices,value);
     if(value.market_data.special_indices!==undefined)validateSpecialIndices(value.market_data.special_indices,value);
+    if(value.market_data.sector_board!==undefined)validateSectorBoard(value.market_data.sector_board,value.date);
     const sectors=value.market_data.sector_indices;
     if(sectors!==undefined) {
       if(!sectors || sectors.date!==value.date || !['available','partial','unavailable'].includes(sectors.status) || !Array.isArray(sectors.rows) || !Number.isInteger(sectors.configured_count) || sectors.configured_count<0 || sectors.configured_count>1000 || sectors.rows.length>sectors.configured_count || sectors.sample_size!==sectors.rows.length || !Array.isArray(sectors.observations) || !Array.isArray(sectors.provenance))throw new Error('行业观察指数格式无效');
