@@ -16,6 +16,7 @@ export async function POST(request:Request) {
   if(request.headers.get('origin') && request.headers.get('origin')!==new URL(request.url).origin)return Response.json({error:'拒绝跨站写入'},{status:403});
   if(!request.headers.get('content-type')?.includes('application/json'))return Response.json({error:'需要 JSON 请求'},{status:415});
   const text=await request.text();
-  if(text.length>5_000_000)return Response.json({error:'报告超过大小限制'},{status:413});
+  // The combined report also contains the SEPA candidates' compact chart bars.
+  if(text.length>8_000_000)return Response.json({error:'报告超过大小限制'},{status:413});
   try {const saved=await writeReport(JSON.parse(text));return Response.json({saved});}catch{return Response.json({error:'报告校验或写入失败'},{status:400})}
 }

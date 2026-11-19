@@ -1,3 +1,4 @@
+import {validateSepa} from './sepa-validation.mjs';
 export const kinds = ['indices','stocks','etfs','futures','options'];
 export function validDate(value: unknown): value is string {
   return typeof value==='string' && /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(Date.parse(value)) && new Date(value).toISOString().slice(0,10)===value;
@@ -60,6 +61,7 @@ export function validateReport(value: any): void {
   if(!finiteNumbers(value))throw new Error('数值或嵌套结构无效');
   if (!value || value.schema_version!==1 || !validDate(value.date) || !['a-stock-data','通达信 MCP','a-stock-data / 通达信 MCP'].includes(value.source) || !['complete','partial'].includes(value.status) || value.timezone!=='Asia/Shanghai') throw new Error('报告格式无效');
   if(typeof value.generated_at!=='string' || Number.isNaN(Date.parse(value.generated_at)) || Date.parse(value.generated_at)>Date.now()+600000) throw new Error('生成时间无效');
+  if(value.sepa!==undefined)validateSepa(value.sepa,value.date);
   let samples=0;
   for (const kind of kinds) {
     const s=value.sections?.[kind];
