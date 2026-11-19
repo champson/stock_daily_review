@@ -49,6 +49,8 @@ python3 -m review.sepa.daily --output-root work/sepa/archive \
 
 网站 `/sepa` 和首页使用同一份报告、同一日期选择器与历史列表；`/api/sepa` 提供只读的 SEPA 字段。导出的网页数据包含独立趋势/RS/VCP计算、最后120根腾讯前复权日线和均线，成交量统一为股。大虾皮原始响应、私有路径和完整事件重放日志不进入网页。网页数据仍通过原 `/api/reports` 的服务写入鉴权和不可变R2版本保存，日常无需部署代码。旧报告没有SEPA字段时明确显示尚未包含分析。
 
+网页近期筛选使用同份日报 `market_data.calendar_basis.bias25_dates` 中已核验的官方交易日，取含报告日在内的最后5日；不按自然日、星期规则或个股K线根数推算。重点关注仅包含仍有效的 A 类待突破，以及窗口内确认突破的 B 类；回踩不重置原突破日期。日历缺失时不猜测突破新旧，待突破及全部候选仍可查看。`/api/sepa` 的 `focus` 是派生展示字段，原始 `report` 不改写。每段收缩展示高点日到低点日、低点确认日，并在图表中标出可见区间。
+
 运行环境需能读取 `DAXIAPI_TOKEN` 并访问 `daxiapi.com`、`www.tdx.com.cn`、`web.ifzq.gtimg.cn`；不把HTTP密钥复制到普通环境变量。私有 `work/sepa/archive` 保留完整研究证据；新建Cloud实例不代表这些私有文件已经迁移，网页上的派生分析历史则在原Site的R2中持久保存。
 
 2026-11-19 在已配置 HTTP 密钥的 Cloud 中完成 2026-11-18 真实日报联调：接口的 80 条候选全部取得独立腾讯前复权日线，报告和 80 张图表成功生成；通达信 RS 可比样本为 5,106 / 5,216（97.89%），满足 90% / 1,000 个样本的配置门槛。166 个产物的大小、SHA-256 和私有权限均读回核验，同日重新启动 CLI 返回 `already_completed`。五个 MCP 工具经新启动的 stdio 服务验收，其中归档报告与磁盘内容一致，单股重放与日报的趋势/VCP 结果一致。212 项 Python 测试通过。此记录证明当前实例的运行和读回，不代表已经验证未来计划任务的执行或跨实例历史迁移。
@@ -62,3 +64,4 @@ SEPA_ARCHIVE_ROOT=/absolute/private/archive python3 -m review.sepa.mcp_server
 ```
 
 客户端通过 stdio 调用 `vcp_candidates`、`sepa_screen`、`vcp_analyze`、`sepa_rank`、`sepa_report`。报告读取只在服务端配置的私有归档根内进行。实时工具与 CLI 共用同一来源和计算逻辑。`--transport streamable-http` 适用于本机调试，只绑定回环地址。Cloud App 若需远程连接，须另外部署受访问控制的 HTTPS 服务并接入该客户端。
+
