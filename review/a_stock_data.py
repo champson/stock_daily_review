@@ -308,8 +308,15 @@ class AStockData:
         except (RuntimeError, ValueError, KeyError, TypeError, OSError) as exc:
             from .period_data import empty_period_prices
             periods = empty_period_prices(day, basis, f"跨期价格未取得：{type(exc).__name__}：{exc}")
-        return {"convertibles": convertibles, "calendar_basis": basis, "sector_indices": sectors,
-                "period_prices": periods, "special_indices": self.special_indices(day, basis)}
+        result = {"convertibles": convertibles, "calendar_basis": basis, "sector_indices": sectors,
+                  "period_prices": periods, "special_indices": self.special_indices(day, basis)}
+        if self.settings.get("sector_board"):
+            from .sector_board import collect_sector_board, empty_board
+            try:
+                result["sector_board"] = collect_sector_board(self, day)
+            except (RuntimeError, ValueError, KeyError, TypeError, OSError) as exc:
+                result["sector_board"] = empty_board(day, f"板块观察未取得：{exc}")
+        return result
 
     def special_indices(self, day, basis):
         """具名发布者指数；不把样本收益的平均数冒充指数收益。"""
