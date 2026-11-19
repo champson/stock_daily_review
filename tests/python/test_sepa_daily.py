@@ -96,6 +96,29 @@ class DailyJobTests(unittest.TestCase):
             loader.assert_not_called(); collector.assert_not_called()
             self.assertEqual(stat.S_IMODE(target.stat().st_mode), 0o700)
 
+    def test_older_engine_replays_verified_inputs_without_network_or_overwriting_history(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            result = self.call(root, **fixtures(root))
+            self.assertEqual(result["status"], "completed")
+            original = Path(result["output_dir"])
+            record = json.loads((original / "run.json").read_text())
+            record["analysis_version"] = 1
+            (original / "run.json").write_text(json.dumps(record))
+            before = {p.name: p.read_bytes() for p in (original / "run.json", original / "report.json")}
+            no_network = Mock(side_effect=AssertionError("replay must use archived inputs"))
+            with patch("review.sepa.daily._default_adapter", no_network):
+                corrected = self.call(root, candidate_loader=no_network, market_collector=no_network)
+                self.assertEqual(corrected["status"], "completed")
+                self.assertEqual(corrected["analysis_version"], 2)
+                self.assertIn(".revisions/vcp-2", corrected["output_dir"])
+                self.assertEqual(corrected["replay_of"]["report_sha256"], record["artifacts"]["report.json"]["sha256"])
+                again = self.call(root, candidate_loader=no_network, market_collector=no_network)
+                self.assertEqual(again["status"], "already_completed")
+                self.assertEqual(again["output_dir"], corrected["output_dir"])
+            no_network.assert_not_called()
+            self.assertEqual(before, {p.name: p.read_bytes() for p in (original / "run.json", original / "report.json")})
+
     def test_bad_calendar_is_retryable_failure_without_candidate_pull(self):
         adapter = CalendarFixture()
         adapter.calendar_month = Mock(return_value={"rows": []})

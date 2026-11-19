@@ -12,6 +12,7 @@ from datetime import date
 import math
 from statistics import mean, median
 
+ANALYSIS_VERSION = 2
 
 DEFAULTS = {
     "swing_window": 3, "min_swing_pct": 2.0,
@@ -207,13 +208,15 @@ def analyze_vcp(bars, config=None):
     cfg = _config(config)
     bars = _bars(bars, cfg.get("as_of"))
     if not bars:
-        return {"as_of": None, "state": "incomplete", "score": None, "pivot": None, "risk_level": None,
+        return {"as_of": None, "analysis_version": ANALYSIS_VERSION,
+                "state": "incomplete", "score": None, "pivot": None, "risk_level": None,
                 "setup_id": None, "setup_detected_at": None, "pivot_known_at": None,
-                "swings": [], "metrics": {}, "breakout": None, "events": [],
+                "swings": [], "metrics": {}, "breakout": None, "breakout_history": [], "events": [],
                 "reasons": ["没有可分析的完整日线。"]}
     tr, atr = _ranges(bars, cfg["atr_period"])
     events, pivots, seen_setups = [], [], set()
     active, last_setup, latest_breakout = None, None, None
+    cycle_start_index = 0
     state, current_reasons, candidate_swings, candidate_metrics = "incomplete", [], [], {}
 
     def emit(kind, index, **payload):
@@ -281,6 +284,9 @@ def analyze_vcp(bars, config=None):
                         if confirmed:
                             active["confirmed_breakout"] = True
                             active["breakout_index"] = i
+                            # A confirmed departure ends this base. Later bases
+                            # must earn their own contractions after departure.
+                            cycle_start_index = i
                             emit("breakout_confirmed", i, setup_id=active["id"], pivot=pivot, breakout=attempt)
                             transition("breakout", i)
                         else:
@@ -315,8 +321,15 @@ def analyze_vcp(bars, config=None):
                     pivots[-1] = point; changed = True
 
         if changed:
-            candidate_swings, candidate_metrics, candidate_reasons = _geometry(_swings(pivots, bars, tr, atr, cfg), cfg)
-            if candidate_metrics.get("price_qualified") and not (active and active.get("confirmed_breakout")):
+            fresh_swings = [s for s in _swings(pivots, bars, tr, atr, cfg)
+                            if s["high_index"] >= cycle_start_index]
+            candidate_swings, candidate_metrics, candidate_reasons = _geometry(fresh_swings, cfg)
+            # Evaluate a close against yesterday's frozen pivot before accepting
+            # new extrema. A low confirmed on a breakout bar cannot erase that
+            # breakout by lifting the pivot or disarming the existing setup.
+            preserve_departure = active and (active.get("confirmed_breakout") or
+                active.get("first_price_break_date") and bar["close"] > active["pivot"])
+            if candidate_metrics.get("price_qualified") and not preserve_departure:
                 identity = "|".join(s["high_date"] + ":" + s["low_date"] for s in candidate_swings)
                 if identity not in seen_setups:
                     seen_setups.add(identity)
@@ -370,9 +383,15 @@ def analyze_vcp(bars, config=None):
     component = [metrics.get(k) for k in ("price_contraction_score", "volume_contraction_score", "atr_contraction_score")]
     weights = [cfg["score_weights"][key] for key in ("price", "volume", "atr")]
     score = sum(v * w for v, w in zip(component, weights) if w) / sum(weights) if all(v is not None or not w for v, w in zip(component, weights)) else None
-    return {"as_of": bars[-1]["date"], "state": state, "score": score,
+    history = [{"date": e["date"], "first_price_break_date": e["breakout"]["first_price_break_date"],
+                "pivot": e["pivot"], "volume_ratio": e["breakout"]["volume_ratio"],
+                "setup_id": e["setup_id"]}
+               for e in events if e["type"] == "breakout_confirmed"]
+    return {"as_of": bars[-1]["date"], "analysis_version": ANALYSIS_VERSION,
+            "state": state, "score": score,
             "pivot": setup["pivot"] if setup else None, "risk_level": setup["risk_level"] if setup else None,
             "setup_id": setup["id"] if setup else None, "setup_detected_at": setup["detected_at"] if setup else None,
             "pivot_known_at": setup["detected_at"] if setup else None,
             "swings": deepcopy(selected), "metrics": metrics, "breakout": deepcopy(latest_breakout),
-            "events": events, "reasons": list(dict.fromkeys(current_reasons))}
+            "breakout_history": history, "events": events,
+            "reasons": list(dict.fromkeys(current_reasons))}

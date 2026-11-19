@@ -17,7 +17,9 @@ export function buildSepaFocus(daily) {
   const rows = {};
   for (const row of report?.rows || []) {
     const vcp = row.vcp || {}, breakout = vcp.breakout;
-    const date = isDate(breakout?.date) && breakout.date <= report.date ? breakout.date : null;
+    const observation = isDate(breakout?.date) && breakout.date <= report.date ? breakout.date : null;
+    const date = isDate(breakout?.first_price_break_date) && observation &&
+      breakout.first_price_break_date <= observation ? breakout.first_price_break_date : null;
     const index = sessions.indexOf(date);
     const confirmed = breakout?.volume_confirmed === true;
     let state = 'other';
@@ -28,7 +30,8 @@ export function buildSepaFocus(daily) {
           date < window[0] ? 'older' : 'unknown';
       }
     }
-    rows[row.symbol] = {state, breakout_date: date, breakout_confirmed: confirmed,
+    rows[row.symbol] = {state, breakout_date: date, confirmation_date: confirmed ? observation : null,
+      breakout_confirmed: confirmed,
       age_sessions: index < 0 ? null : sessions.length - 1 - index};
     if (state in counts) counts[state]++;
     if (state === 'ready' || state === 'recent') counts.focus++;
