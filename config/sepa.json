@@ -1,0 +1,32 @@
+{
+  "history_bars": 320,
+  "trend": {
+    "min_history_bars": 253,
+    "ma200_rising_days": 21,
+    "min_above_52w_low_pct": 30,
+    "max_below_52w_high_pct": 25,
+    "rs_min_percentile": 70,
+    "rs_weights": {"63d": 0.4, "126d": 0.3, "252d": 0.3},
+    "rs_min_coverage": 0.9,
+    "rs_min_samples": 1000,
+    "allow_market_sample_rs": true
+  },
+  "vcp": {
+    "swing_window": 3,
+    "min_swing_pct": 2.0,
+    "min_contractions": 2,
+    "max_contractions": 5,
+    "min_base_bars": 10,
+    "max_base_bars": 120,
+    "contraction_tolerance_pct": 2.0,
+    "max_last_drawdown_pct": 15.0,
+    "volume_lookback": 20,
+    "breakout_volume_ratio": 1.5,
+    "breakout_buffer_pct": 0.0,
+    "failure_buffer_pct": 3.0,
+    "retest_tolerance_pct": 2.0,
+    "max_signal_age_bars": 30,
+    "atr_period": 14,
+    "score_weights": {"price": 25, "volume": 15, "atr": 10}
+  }
+}
