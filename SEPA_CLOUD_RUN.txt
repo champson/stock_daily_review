@@ -1,0 +1,10 @@
+执行 SEPA + VCP 私有盘后二筛。源码为 GitHub champson/stock_daily_review 的 codex/sepa-vcp 分支；操作说明为 docs/sepa-cloud.md。此任务独立于现有多资产股票复盘任务，不修改其任务或公开 Site。
+
+1. 检查本任务的 Cloud 环境状态，确认 DAXIAPI_TOKEN 已就绪并允许 daxiapi.com、www.tdx.com.cn、web.ifzq.gtimg.cn。HTTP 密钥通过正常 Bearer 请求使用，保留环境代理与 CA。不要输出、落盘或向聊天索取 Token。
+2. 找到仓库并核对远端分支；保留私有 work/sepa/archive、work/sepa/calendar 和本地改动。干净工作区可快进到远端 codex/sepa-vcp。缺少仓库时克隆指定分支；不使用 reset --hard 或 force push。恢复源码不等于恢复私有历史，若历史目录缺失需在运行结果中说明。
+3. 使用 requirements-sepa.txt 的依赖。可安装到仓库 work/deps（python3 -m pip install --target work/deps -r requirements-sepa.txt），并令 PYTHONPATH 指向该目录。MPLCONFIGDIR 使用仓库 work/matplotlib。已满足依赖时直接运行。
+4. 以 Asia/Shanghai 当天为报告日。正常盘后执行，不使用未收盘数据。用户要求盘中联调时，可依据完整官方月历选取最近一个已收盘交易日，并明确该报告日期；不能用工作日规则猜日期。
+5. 使用已核验的完整官方月历；新月份在直连源不可用时，调用已连接 A 股 MCP 的 get_capabilities 与 trading_calendar(year, month)，将真实结构化返回保存为 JSON，再用 python3 -m review.sepa calendar-import --snapshot 文件 --archive-dir work/sepa/calendar 导入。只补必要月份，不推测未知 MCP URL。
+6. 从仓库运行 python3 -m review.sepa.daily --output-root work/sepa/archive --calendar-archive-dir work/sepa/calendar（盘中联调可显式 --date）。官方休市会跳过，成功日会核验后去重。不得使用 --allow-unranked 把研究结果冒充正式完成；候选日期过期、未发布数据、权限错误或 RS 不足应保留失败诊断，报告失败原因，之后允许同日重试。
+7. 读取本次 run.json、report.json、ranking.csv 并核验文件哈希；用 review.sepa.mcp_server 的 sepa_report/sepa_rank 读回同一归档，或使用同一 SepaService 核验逻辑。再次运行同日任务应返回 already_completed。保留本次来源、日期、前复权口径、成交量单位、RS 样本覆盖和图表。
+8. 在本任务私有对话中报告日期、候选数、数据覆盖、A/B/C/D 分类数及不可用项，链接私有报告和 CSV。大虾皮 TOON 只有展示子集；date 是无年份的数据日期，不能证明信号日或历史成员资格。原始名单、响应和报告只放私有 work 目录，不提交 Git、不写公开 Site、不下单。

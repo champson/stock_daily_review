@@ -1,4 +1,4 @@
-"""Synthetic candidate-protocol examples only: no live publisher-schema claim."""
+"""Synthetic records exercising the observed TOON and legacy JSON contracts."""
 import http.client
 import io
 import json
@@ -10,7 +10,7 @@ from unittest.mock import Mock, patch
 from zoneinfo import ZoneInfo
 
 from review.mcp_client import NoRedirect
-from review.sepa.daxi import ENDPOINT, CLIENT_VERSION, SCHEMA_STATUS, DaxiDataError, load_daxi_candidates
+from review.sepa.daxi import ENDPOINT, CLIENT_VERSION, SCHEMA_STATUS, TOON_LIMIT_NOTICE, DaxiDataError, load_daxi_candidates
 
 DAY = "2026-11-18"
 TOKEN = "fixture-not-a-real-daxi-token"
@@ -63,7 +63,7 @@ class DaxiCandidateContractTests(unittest.TestCase):
         self.assertEqual(result["rows"][1]["publisher_date"], "2026-11-16")
         self.assertNotIn("signal_date", result["rows"][1])
         self.assertTrue(all(r["snapshot_date"] == DAY for r in result["rows"]))
-        self.assertEqual(result["source"]["schema_status"], SCHEMA_STATUS)
+        self.assertEqual(result["source"]["schema_status"], "explicit_json_contract_unobserved_live")
         self.assertEqual(result["source"]["client_version"], CLIENT_VERSION)
         self.assertFalse(result["source"]["verified_empty"])
         self.assertNotIn(TOKEN, json.dumps(result, ensure_ascii=False))
@@ -170,6 +170,56 @@ class DaxiCandidateContractTests(unittest.TestCase):
                 with self.subTest(kwargs=kwargs), self.assertRaises(ValueError):
                     load_daxi_candidates(**kwargs)
             build.assert_not_called();run.assert_not_called()
+
+    def test_observed_toon_shape_preserves_quoted_code_commas_and_date_basis(self):
+        payload = {"errCode": 0, "data": '```toon\n[2]{"代码","名称",date,"概念"}:\n'
+                   '  "002100","测试,名称",11-18,"概念,含逗号"\n'
+                   '  "600519","测试\\"引号",11-18,""\n```\n' + TOON_LIMIT_NOTICE}
+        result, _, _ = self.call(payload)
+        self.assertEqual(len(result["rows"]), 2)
+        self.assertEqual(result["rows"][1]["symbol"], "sz002100")
+        self.assertEqual(result["rows"][1]["name"], "测试,名称")
+        self.assertEqual(result["rows"][0]["name"], '测试"引号')
+        self.assertEqual(result["rows"][0]["publisher_date"], DAY)
+        self.assertEqual(result["rows"][0]["publisher_date_raw"], "11-18")
+        self.assertNotIn("signal_date", result["rows"][0])
+        self.assertNotIn("snapshot_date", result["rows"][0])
+        self.assertIsNone(result["source"]["snapshot_date"])
+        self.assertFalse(result["source"]["historical_membership_verified"])
+        self.assertFalse(result["source"]["candidate_pool_complete"])
+        self.assertEqual(result["source"]["schema_status"], SCHEMA_STATUS)
+        self.assertEqual(result["raw"], payload)
+
+    def test_toon_unknown_empty_truncated_conflicting_and_stale_tables_fail(self):
+        valid = '```toon\n[1]{"代码","名称",date}:\n  "002100",测试,11-18\n```'
+        invalid = [valid + '\n未知尾注', valid.replace('[1]', '[0]'), valid.replace('[1]', '[2]'),
+                   valid.replace('11-18', '11-17'), valid.replace('11-18', '2026-11-18'),
+                   valid.replace(',date}', ',"代码"}'), valid.replace(',测试,', ',测试,额外,'),
+                   valid.replace('"002100"', '"002100"垃圾'),
+                   valid.replace('  "002100",测试,11-18\n', ''),
+                   valid.replace('  "002100"', '"002100"'),
+                   valid.replace('测试', '"未闭合'),
+                   valid.replace('[1]', '[2]').replace('\n```', '\n  "600519",测试,11-17\n```')]
+        for data in invalid:
+            with self.subTest(data=data), self.assertRaises(DaxiDataError):
+                self.call({"errCode": 0, "data": data})
+        with self.assertRaises(DaxiDataError):
+            self.call({"errCode": 401, "data": valid})
+        with patch.dict(os.environ, {"DAXIAPI_TOKEN": TOKEN}), \
+                patch("review.sepa.daxi._now_shanghai", return_value=NOW.replace(year=2027)), \
+                patch("review.sepa.daxi.urllib.request.build_opener") as build, self.assertRaises(DaxiDataError):
+            build.return_value.open.return_value = response({"errCode": 0, "data": valid})
+            load_daxi_candidates(DAY)
+
+    def test_toon_year_rollover_uses_recent_observation_not_current_year(self):
+        payload = {"errCode": 0, "data": '```toon\n[1]{"代码","名称",date}:\n'
+                   '  "002100",测试,12-31\n```'}
+        with patch.dict(os.environ, {"DAXIAPI_TOKEN": TOKEN}), \
+                patch("review.sepa.daxi._now_shanghai", return_value=NOW.replace(month=1, day=2)), \
+                patch("review.sepa.daxi.urllib.request.build_opener") as build:
+            build.return_value.open.return_value = response(payload)
+            result = load_daxi_candidates("2025-12-31")
+        self.assertEqual(result["rows"][0]["data_date"], "2025-12-31")
 
 
 if __name__ == "__main__":
