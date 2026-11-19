@@ -13,8 +13,8 @@ type MatrixRow = {
   reasons: Values<string | null> & {bias25: string | null}; notes: string[];
 };
 const columns: {key: Period; label: string}[] = [
-  {key:'year',label:'今年'}, {key:'month',label:'本月'},
-  {key:'week',label:'本周'}, {key:'day',label:'当天'},
+  {key:'day',label:'当天'}, {key:'week',label:'本周'},
+  {key:'month',label:'本月'}, {key:'year',label:'今年'},
 ];
 const periods = columns.map(c => c.key);
 const indices = [
