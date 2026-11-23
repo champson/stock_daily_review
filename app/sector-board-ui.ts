@@ -27,7 +27,14 @@ export const sectorBoardStyles=String.raw`
 .sector-board-table .sector-latest{border:0;background:#eef6f2}
 }
 @media(max-width:720px){.sector-board-controls{gap:12px}.sector-board-controls input{width:100%}.sector-board-controls label:first-child{width:100%}.sector-board-count{width:100%;margin-left:0;padding:0}.sector-board-notes{padding-left:16px;padding-right:16px}}
-@media print{.sector-board-controls{display:none}.sector-board-wrap{container-type:normal}.sector-board-group{break-inside:auto}.sector-board-table tr{break-inside:avoid}}
+@media print{
+.sector-board-controls{display:none}.sector-board-wrap{container-type:normal}
+.sector-board-table{font-size:11px;line-height:1.4}
+.sector-board-table th,.sector-board-table td{padding:5px 3px}
+.sector-board-table th:first-child{width:230px;padding-left:8px}
+.sector-name{gap:4px}.sector-code,.sector-added{font-size:10px}
+.sector-board-group{break-inside:auto}.sector-board-table tr{break-inside:avoid}
+}
 `;
 export const sectorBoardHtml=String.raw`
 <section id="sector-board" hidden aria-label="板块20日EMA乖离率">
