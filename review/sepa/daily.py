@@ -267,6 +267,9 @@ def run_daily(day=None, output_root=None, *, config_path=None, price_dir=None,
             except Exception as exc:
                 record.update(status="failed", error_type=type(exc).__name__,
                               error=str(exc).replace("\r", " ").replace("\n", " ")[:500])
+                from .daxi import DaxiDataError
+                if isinstance(exc, DaxiDataError):
+                    record["error_code"] = exc.code
                 return record
             finally:
                 record["finished_at"] = _now(now).isoformat()

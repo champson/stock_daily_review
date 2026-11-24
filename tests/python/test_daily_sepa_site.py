@@ -31,6 +31,24 @@ class CombinedDailyTests(unittest.TestCase):
         self.assertEqual(with_sepa(base, "/unused", sepa_runner=loader), base)
         loader.assert_not_called()
 
+    def test_candidate_failure_shows_safe_cause_without_provider_details(self):
+        base = {"date": DAY, "status": "complete", "sections": {"stocks": {"sample_size": 10}}}
+        for code, expected in (("missing_credentials", "运行环境未配置大虾皮访问凭据"),
+                               ("snapshot_date_mismatch", "数据日期与报告日不一致"),
+                               ("rate_limited", "接口限流"),
+                               ("private-provider-secret", "候选数据校验未完成")):
+            with self.subTest(code=code):
+                failed = {"status": "failed", "stage": "candidates", "error_code": code,
+                          "error": "raw-provider-secret", "output_dir": "/private/archive"}
+                result = with_sepa(base, "/unused", sepa_runner=lambda *a, **kw: failed)
+                text = json.dumps(result, ensure_ascii=False)
+                self.assertIn(expected, text)
+                for private in ("raw-provider-secret", "private-provider-secret", "/private/archive"):
+                    self.assertNotIn(private, text)
+                self.assertEqual(result["sections"], base["sections"])
+                self.assertIsNone(result["sepa"]["candidate_count"])
+                self.assertEqual(result["status"], "partial")
+
     def test_existing_success_is_reused_but_wrong_day_cannot_enter_report(self):
         base = {"date": DAY, "status": "complete"}
         loader = Mock(return_value={"status": "already_completed", "output_dir": "/archive"})
@@ -63,6 +81,14 @@ class CombinedDailyTests(unittest.TestCase):
                 self.assertEqual(result["rows"][0]["bars"][0][6:], [None, None, None])
                 for value in ("private", "raw_capture", "quote.json", "events", temporary):
                     self.assertNotIn(value, json.dumps(result))
+                run["candidate_source"]["retrieval_method"] = "dated_sql_vcp"
+                (root / "run.json").write_text(json.dumps(run))
+                recovered = export_report(root)
+                self.assertEqual(recovered["candidate_source"]["retrieval_method"], "dated_sql_vcp")
+                self.assertIn("历史补跑", recovered["observations"][0])
+                self.assertIn("共返回 1 条", recovered["observations"][0])
+                self.assertFalse(recovered["candidate_source"]["historical_membership_verified"])
+                self.assertNotIn("private", json.dumps(recovered))
                 (root / "quote.json").write_text("{}")
                 with self.assertRaisesRegex(ValueError, "哈希"):
                     export_report(root)
