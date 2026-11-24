@@ -156,6 +156,21 @@ class DailyJobTests(unittest.TestCase):
             self.assertTrue(all(not symbols for symbols in report["groups"].values()))
             collector.assert_not_called()
 
+    def test_actual_missing_credential_retains_machine_readable_failure(self):
+        with tempfile.TemporaryDirectory() as directory, patch.dict("os.environ", {}, clear=True):
+            root = Path(directory)
+            from review.sepa.daxi import load_daxi_candidates
+            collector = Mock(side_effect=AssertionError("no market request"))
+            result = self.call(root, candidate_loader=load_daxi_candidates,
+                               market_collector=collector, **fixtures(root))
+            self.assertEqual(result["status"], "failed")
+            self.assertEqual(result["stage"], "candidates")
+            self.assertEqual(result["error_code"], "missing_credentials")
+            record = json.loads((Path(result["output_dir"]) / "run.json").read_text())
+            self.assertEqual(record["error_code"], "missing_credentials")
+            self.assertFalse((root / "archive" / DAY).exists())
+            collector.assert_not_called()
+
     def test_unverified_empty_is_failure_and_can_be_retried(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

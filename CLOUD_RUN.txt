@@ -2,6 +2,7 @@
 从运行时提供的 Site ID 调用 get_site，核对当前用户为owner及项目ID；保留当前公开/私有受众，不更改访问权限。
 恢复该Site已部署版本的源码（保留项目ID），代码也保存在GitHub champson/stock_daily_review。日常任务采用已发布版本，不直接使用尚未发布的GitHub改动；不要创建新Site。源码根目录包含 .openai/hosting.json、review/、config/、requirements.txt 和本文件。
 使用已配置 DAXIAPI_TOKEN 的 stock_daily_review Cloud 环境。DAXIAPI_TOKEN 是仅发送到 daxiapi.com 的 HTTP 密钥，按正常 Bearer 请求使用环境占位值，保留代理与 CA；不要输出、复制到普通环境变量或写入提示词。运行前确认凭据就绪，缺失时 SEPA 明确标记不可用，保留其他有效模块。
+运行前使用 environment_status 核对实际机器与网络密钥 ready 状态，并在执行进程中只检查 DAXIAPI_TOKEN 是否存在；不能仅凭任务提示词写着环境名称就认为已绑定。未就绪时不得转到没有凭据的默认容器。报告完成后分别核验市场和 SEPA 状态；SEPA 缺少凭据或未完成时必须在任务结果中明确指出失败阶段与所需处理，不能把市场日报发布成功当作 SEPA 成功。
 在恢复的源码目录创建 work/data-venv 并安装 requirements-sepa.txt；不要安装或调用 mootdx/TCP，也不需要第三方 MCP。上游数据代码已经按固定版本保存在 review/vendor/。
 日期使用 Asia/Shanghai 当日。保留 work/sepa/archive 和 work/sepa/calendar。统一运行 work/data-venv/bin/python -m review.daily --date YYYY-MM-DD --output work/report.json --sepa-archive work/sepa/archive --calendar-archive-dir work/sepa/calendar。
 运行退出非零时停止，不发布已有旧文件。skipped=true 代表已依据日历确认休市，不写报告。日历优先深交所在线整月数据，其次完整年度通达信官方休市表，再使用 config/calendars 中已核验的深交所官方整月归档；归档也须核对来源、月份、逐日完整性及带时区的获取时间。全部无有效日历时失败，不能仅按星期判断，也不猜测归档未覆盖的月份。

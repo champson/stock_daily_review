@@ -60,7 +60,7 @@ def export_report(directory):
         rows.append(public)
     source = run["candidate_source"]
     market = report["market_rs"]
-    return {"schema_version": 1, "date": run["date"], "generated_at": run["finished_at"],
+    result = {"schema_version": 1, "date": run["date"], "generated_at": run["finished_at"],
             "status": report["status"], "candidate_count": len(rows), "rows": rows,
             "groups": {key: len(report["groups"][key]) for key in CATEGORIES},
             "market_rs": {key: market.get(key) for key in ("date", "status", "universe", "coverage", "method", "anchors")},
@@ -71,3 +71,10 @@ def export_report(directory):
             "observations": ["候选仅覆盖大虾皮接口展示子集；数据日期不证明 VCP 信号日或历史成员资格。",
                              "RS 是沪深有成交样本内的收益百分位代理，非全市场或 IBD RS Rating。",
                              "日线为腾讯前复权，成交量统一为股；历史前复权价格可能随公司行为调整。"]}
+    if source.get("retrieval_method") == "dated_sql_vcp":
+        result["candidate_source"].update(retrieval_method="dated_sql_vcp",
+                                          source_url="https://daxiapi.com/coze/sql_query")
+        result["observations"].insert(0,
+            "本日为历史补跑：候选来自大虾皮按日期查询的 isVCP=1 子集，逐条核对 fullDate；"
+            "共返回 " + str(len(rows)) + " 条，不代表原盘后页面的完整名单或当时保存的快照。")
+    return result
